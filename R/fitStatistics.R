@@ -1,5 +1,6 @@
 #### Collection of test statistics ----
 
+# SRMR: Standardized Root Mean Square Residual
 SRMR <- function(data, adjacency, target = 1:ncol(data),
   tolerance = 1e-6) {
 
@@ -11,21 +12,17 @@ SRMR <- function(data, adjacency, target = 1:ncol(data),
 
   # get empirical and implied correlation matrices
   emp <- stats::cor(data)
+  imp <- impliedCor(emp, adjacency, n)
 
-  constr <- which(adjacency == 0, arr.ind = TRUE)
-  constr <- constr[constr[, 1] != constr[, 2], ]
-  Net <- glasso::glasso(s = emp, rho = 0, nobs = n,
-    zero = constr) |> suppressWarnings() |> suppressMessages()
-  imp <- stats::cov2cor(Net$w)
+  # same thing for partial correlation matrices
+  empRho <- c2pc(emp)
+  impRho <- c2pc(imp)
 
   # filter down to local version
   emp <- emp[target, target]
   imp <- imp[target, target]
-
-  # same thing for partial correlation matrices
-  empRho <- c2pc(emp)
-  impRho <- -stats::cov2cor(Net$wi)
-  diag(impRho) <- 1
+  empRho <- empRho[target, target]
+  impRho <- impRho[target, target]
 
   # get unique entries
   uni <- lower.tri(emp, diag = FALSE)
@@ -40,4 +37,33 @@ SRMR <- function(data, adjacency, target = 1:ncol(data),
   srmr <- sqrt(SS / (p * (p - 1)/2))
 
   return(srmr)
+}
+
+
+# (Blockwise) Chi²
+ChiSq <- function(data, adjacency, target = 1:ncol(data),
+  tolerance = 1e-6) {
+
+  # determine sample size
+  n <- nrow(data)
+  # determine p
+  p <- length(target)
+
+  # get empirical and implied correlation matrices
+  emp <- stats::cor(data)
+  imp <- impliedCor(emp, adjacency, n)
+
+  # same thing for partial correlation matrices
+  empRho <- c2pc(emp)
+  impRho <- c2pc(imp)
+
+  # filter down to local version
+  emp <- emp[target, target]
+  imp <- imp[target, target]
+  empRho <- empRho[target, target]
+  impRho <- impRho[target, target]
+
+  chi <- n * (log(det(imp)) - log(det(emp)) + sum(diag(emp %*% solve(imp))) - p)
+
+  return(chi)
 }
