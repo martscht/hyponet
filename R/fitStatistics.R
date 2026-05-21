@@ -48,27 +48,27 @@ fit_rmsea <- function(est, tolerance = 1e-6) {
 #' (Blockwise) AIC
 #'
 #' @keywords internal
-fit_aic <- function(est, tolerance = 1e-6) {
-
-  loglik <- -est$n / 2 * (log(det(est$imp)) + sum(diag(est$emp %*% solve(est$imp))))
-
-  k <- sum(est$adjacency[lower.tri(est$adjacency)] != 0)
-
-  aic <- -2 * loglik + 2 * k
-
-  return(aic)
-}
+# fit_aic <- function(est, tolerance = 1e-6) {
+#
+#   loglik <- -est$n / 2 * (log(det(est$imp)) + sum(diag(est$emp %*% solve(est$imp))))
+#
+#   k <- sum(est$adjacency[lower.tri(est$adjacency)] != 0)
+#
+#   aic <- -2 * loglik + 2 * k
+#
+#   return(aic)
+# }
 
 #' (Blockwise) BIC
 #'
 #' @keywords internal
-fit_bic <- function(est, tolerance = 1e-6) {
-
-  loglik <- -est$n / 2 * (log(det(est$imp)) + sum(diag(est$emp %*% solve(est$imp))))
-
-  k <- sum(est$adjacency[lower.tri(est$adjacency)] != 0)
-
-  bic <- -2 * loglik + log(est$n) * k
-
-  return(bic)
-}
+# fit_bic <- function(est, tolerance = 1e-6) {
+#
+#   loglik <- -est$n / 2 * (log(det(est$imp)) + sum(diag(est$emp %*% solve(est$imp))))
+#
+#   k <- sum(est$adjacency[lower.tri(est$adjacency)] != 0)
+#
+#   bic <- -2 * loglik + log(est$n) * k
+#
+#   return(bic)
+# }
