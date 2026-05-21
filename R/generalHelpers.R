@@ -1,6 +1,8 @@
 #### Collection of general helper functions ----
 
-# Convert correlation matrix to partial correlations
+#' Convert correlation matrix to partial correlations
+#'
+#' @keywords internal
 c2pc <- function(R) {
 
   Omega <- solve(R)
@@ -10,6 +12,9 @@ c2pc <- function(R) {
   return(Rho)
 }
 
+#' Determine implied correlation matrix via glasso
+#'
+#' @keywords internal
 impliedCor <- function(empirical, adjacency, n, ...) {
 
   # Rephrase constraints
@@ -22,4 +27,126 @@ impliedCor <- function(empirical, adjacency, n, ...) {
   SigmaHat <- stats::cov2cor(Net$w)
 
   return(SigmaHat)
+}
+
+#' Estimate implied and empirical networks
+#'
+#' @keywords internal
+fullEstimation <- function(data, adjacency, target = 1:ncol(data)) {
+
+  # determine sample size
+  n <- nrow(data)
+  # determine p
+  p <- length(target)
+
+  # get empirical and implied correlation matrices
+  emp <- stats::cor(data)
+  imp <- impliedCor(emp, adjacency, n)
+
+  # same thing for partial correlation matrices
+  empRho <- c2pc(emp)
+  impRho <- c2pc(imp)
+
+  # filter down to local version
+  emp <- emp[target, target]
+  imp <- imp[target, target]
+  empRho <- empRho[target, target]
+  impRho <- impRho[target, target]
+  adjacency <- adjacency[target, target]
+
+  # combine output
+  out <- list(n = n, p = p,
+    emp = emp,
+    empRho = empRho,
+    imp = imp,
+    impRho = impRho,
+    adjacency = adjacency)
+
+  class(out) <- 'hyponetEst'
+
+  return(out)
+}
+
+
+#' Check for all available measures
+#'
+#' @keywords internal
+implementedFits <- function(prefix = 'fit_') {
+
+  ns <- asNamespace('hyponet')
+
+  fitFuns <- ls(ns, all.names = TRUE, pattern = paste0('^', prefix, '[a-zA-Z]+$'))
+
+  fits <- sub(paste0('^', prefix), '', fitFuns)
+
+  stats::setNames(fitFuns, fits)
+
+}
+
+#' Determine (any collection of) fit measures for a single application
+#'
+#' @keywords internal
+determineSingleFits <- function(est, tolerance = 1e-6, fits = 'all') {
+
+  # check whether est is the right kind of object
+  if (!inherits(est, 'hyponetEst')) {
+    stop('Unable to determine fit measures.', call. = FALSE)
+  }
+
+  # Check which fit measures are implemented
+  implemented <- implementedFits()
+  available <- names(implemented)
+
+  # check whether only character values were provided
+  if (!is.character(fits)) {
+    stop("'fits' must be a character vector or 'all'.", call. = FALSE)
+  }
+
+  # check whether they should all be computed
+  if (fits == 'all') {
+    fits <- available
+  }
+
+  # discard capitalization
+  fits <- tolower(fits)
+
+  # respond if something unknown was provided
+  unknown <- setdiff(fits, available)
+  if (length(unknown) > 0) {
+    stop(
+      'Unknown fit measure(s): ',
+      paste(unknown, collapse = ', '),
+      '\nAvailable fit measures are: ',
+      paste(available, collapse = ', '),
+      call. = FALSE
+    )
+  }
+
+  ns <- asNamespace("hyponet")
+
+  out <- vapply(fits, function(fit) {
+    fun <- get(implemented[[fit]], envir = ns, inherits = FALSE)
+    fun(est = est, tolerance = tolerance)
+  },
+    numeric(1)
+  )
+
+  return(out)
+}
+
+#' Determine (any collection of) fit measures for many applications
+#'
+#' @keywords internal
+determineFits <- function(data, adjacency, target = NULL, fits = 'all', tolerance = 1e-6, ...) {
+
+  if (inherits(data, 'matrix')) {
+    data <- list(data)
+  }
+  if (is.null(target)) target <- 1:ncol(data[[1]])
+
+  estimated <- lapply(data, fullEstimation, adjacency = adjacency, target = target)
+  fitted <- lapply(estimated, determineSingleFits, tolerance = tolerance, fits = fits)
+  fitted <- do.call(rbind, fitted)
+
+  return(fitted)
 }
