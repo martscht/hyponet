@@ -1,0 +1,27 @@
+#' Parametric Bootstrap for GGMs
+#'
+
+parametricBootstrap <- function(data, adjacency, m = 500, ncores = 1) {
+
+  # prepare data
+  if (inherits(data, 'data.frame')) {
+    if (any(!sapply(data, is.numeric))) {
+      stop('All variables in the data must be numeric.')
+    }
+    data <- as.matrix(data)
+  }
+
+  # compute implied partial correlations
+  S <- cor(data)
+
+  # Fit network with adjacencies
+  constr <- which(adjacency == 0, arr.ind = TRUE)
+  constr <- constr[constr[, 1] != constr[, 2], ]
+  Net <- glasso::glasso(s = S, rho = 0, nobs = nrow(data),
+    zero = constr) |> suppressWarnings() |> suppressMessages()
+
+  SigmaHat <- stats::cov2cor(Net$w)
+
+
+
+}

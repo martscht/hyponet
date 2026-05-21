@@ -1,0 +1,88 @@
+# Discussion
+
+In this study we evaluated the performance of confirmatory testing methods for \emph{edge-set} and \emph{edge-weight} null hypotheses. 
+Generally, $\chi^2$-Tests and SEM fit statistics were able to detect edge-set misspecifications, unless the theoretical edge-set was a simple overspecification of the population edge-set. 
+Parametric bootstrapping mostly increased performance, especially regarding type-I-errors. 
+Tests and the SRMR fit statistic (when bootstrapped) were capable of detecting misspecifications of \emph{edge-weights}. 
+For all cases, combining confirmatory testing with exploratory estimation methods (e.g. regularization) affected the results negatively.
+
+## General performance of fit indices and tests
+
+Our findings regarding SEM-based methods for testing edge-set hypotheses largely align with @du2025:
+RMSEA performed best overall in terms of $\alpha$ error control, and the $\chi^2$ test overrejected well-fitting models more frequently at higher $p$.
+In line with their findings on Type I fit indices, NFI performed worse than Type II and III indices.
+However, as evidenced by irregular, $N$- and $p$-specific $\alpha$ error and power patterns, fixed cutoffs proved unsuitable in our study.
+
+<!-- Martin: This unintroduced Type I, Type II, Type III stuff is still here. Either use it consistently, explain it, or remove it (I do not think it is necessary here) -->
+
+The high-dimensional covariance tests showed no substantial advantage in terms of $N$- or $p$-consistency over other edge-weight (e.g., Fisher or Mantel) methods.
+Contrary to expectations, Fisher's $z$ test was not more conservative than other methods, possibly because the effect of multiple testing correction [@haslbeck2022] is less pronounced in the one-sample setting.
+The Mantel method performed adequately with sufficiently large $N$ and may be used when a graph correlation is a conceptually appropriate test statistic.
+
+Notably, larger $p$ was associated with better performance in our setup, even though standard intuition would suggest that more complex networks require higher power.
+This may be attributable to more modified edges in absolute terms at larger $p$, rather than reflecting a general property of the tests.
+
+## Bootstrapping
+
+Bootstrapping alleviated some of the problems associated with fixed SEM-CNA cutoffs:
+Generally, bootstrap-calibrated $p$-values improved $\alpha$ error rate control across methods, though at the cost of reduced power.
+This is in line with dynamic model fit criteria for SEM for which cutoff values are derived from simulations of the null as proposed by @schmalbach2025.
+As argued by @goretzko2024, these control Type I error rates well, albeit with reduced power to detect misfit at small $N$ [@goretzko2024].
+If one is willing to accept this trade-off, bootstrap-based inference can make test decisions less sensitive to specific model or data characteristics.
+Among edge-weight tests, bootstrapping particularly benefitted the Ledoit-Wolf test by improving $\alpha$ error rates without power loss, but offered no benefits or even drawbacks for Fisher's test in terms of $\alpha$ error.
+
+## Asymmetry of edge-set methods
+
+Edge-set methods showed a systematic asymmetry when the empirical network contained fewer edges than the theoretical one.
+This pattern is consistent with a known but critical property of SEM indices:
+When a theory-implied network includes edges absent in the population (overspecification), the true population structure remains nested within the larger model.
+In such cases, no population discrepancy and hence no misfit arises.
+Consequently, SEM indices can detect when a network hypothesis omits present edges, but not when it falsely includes absent edges.
+This has been noted both in SEM literature [@hu1999; @hertzog2018] and more indirectly in the SEM-CNA literature [@du2025; @epskamp2020].
+<!-- , which pointed out that a saturated model with $df = 0$ fits perfectly, but constitutes the weakest possible hypothesis.  -->
+<!-- Our findings extend this point to CNA practice by showing that the same logic applies just as much to overspecified theory-implied networks. -->
+Recommendations to use SEM-CNA for replication testing [@du2025; @kan2020] should therefore be treated cautiously, since SEM-CNA is not a test of network equality.
+
+## Network estimation
+
+Our results reinforce that glasso should not be used as a default for model selection. 
+Known weaknesses of glasso emerged in our study, particularly weak specificity with rising $N$, while atan, nodewise and ggmModSelect performed more favorably, in line with previous comparative evaluations [@isvoranu2023; @nehler2024; @williams2019].
+
+<!-- Martin: This should conclude with the statement that not using a combination of exploration and confirmation tends to work best (i.e. just testing on the raw partial correlation matrix). -->
+
+## Limitations and future directions
+
+Several assumptions of this study limit the generalizability of the findings.
+First, we focused on GGMs for cross-sectional data, and whether the results generalize to longitudinal networks remains to be examined.
+Second, data-generating population networks were fixed, so performance may be specific to the chosen network structures and dissimilarity configurations.
+Likewise, whether the detection of singular (as compared to percentage-based) edge dissimilarity becomes easier or harder at higher $p$ remains a question for future evaluations.
+Dynamic fit index cutoffs for GGMs [@du2026] or network-specific indices [@golino2021] represent a promising direction for reducing sensitivity of indices to setting-specific characteristics.
+However, whether they can account for issues like overspecification remains to be examined.
+
+Another requirement of all methods evaluated herein is a fully specified theoretical network.
+In practice, researchers might only have assumptions about parts of the network (e.g., a nonzero edge A---B, and a zero edge B---C would be in accordance with the hypothesis, while the rest of the network may vary).
+Developing confirmatory methods for partially specified hypothesis scenarios remains an important direction for future research.
+
+
+## Implications for applied research
+
+It is advisable to conduct inferential tests with raw data, subsequently applying edge-selection or regularization only if needed to ease interpretation.
+The choice of method should take into account not only $p$ and $N$, but also the expected type of misspecification: 
+Density differences -- especially cases where the empirical network may include fewer edges than the theoretical one -- require methods that remain sensitive and sufficiently powered under such conditions.
+
+For edge-set hypotheses, the $\chi^2$-LRT with bootstrap-calibrated $p$-values is recommended, with RMSEA as a complementary effect size measure and a minimum of $N \geq 250$.
+CFI, TLI and NFI are not recommended based on our findings. 
+These methods are appropriate when the goal is to exclude that a hypothesis missed relevant edges, but are unsuitable for testing whether hypothesized edges are actually present in the population.
+If researchers wish to detect overspecification in an edge-set hypothesis scenario, SEM-based approaches should be supplemented by other methods that can detect such misspecification.
+
+For edge-weight hypotheses, the Cai-Ma or Fisher's test are recommended, with Mantel's $r_g$ as an interpretable measure of effect magnitude. 
+If the expected type of dissimilarity is small or harder to detect (e.g., overspecification), a minimum of $N \geq 500$ is advisable.
+
+
+## Conclusion and Outlook
+
+These results extend prior evaluations by covering a broader range of confirmatory approaches across hypothesis types and data settings typical for psychological research, providing a basis for more deliberate testing decisions.
+Confirmatory research is indispensable for informing psychological theory, but is not the only hallmark of good research, as ultimately the value of hypothesis tests depends on the quality of the theories they test.
+In this sense, we hope this study contributes to the integration of rigorous hypothesis testing into network psychometrics and to the broader project of refining psychological theory.
+
+<!-- The end -->

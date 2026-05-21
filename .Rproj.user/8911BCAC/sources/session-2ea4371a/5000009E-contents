@@ -1,0 +1,265 @@
+\phantomsection
+\refstepcounter{section}
+\addcontentsline{toc}{section}{\protect\numberline{\thesection}Introduction}
+
+Over the past decade, the network approach has entered the stage as a popular method for investigating psychological constructs as networks of mutually interacting variables [@borsboom2017]. 
+In cross-sectional settings these are often modeled as partial correlation networks, or Gaussian graphical models [GGMs, @lauritzen1996].
+The first waves of applications have been predominantly exploratory and descriptive [@borsboom2022; @schumacher2024] and as such, particularly well suited to contribute to theory development and hypothesis generation [@lass2023].
+While such explorations reinvigorated theoretical thinking about psychological constructs, it has increasingly been noted that to advance the field, moving towards theory-driven hypothesis testing using empirical data is necessary [@fried2020; @haslbeck2019].
+
+A range of confirmatory methods for networks have been developed, mainly testing for network differences between groups [@vanborkulo2022\; for a review, see @haslbeck2022], individuals, or timepoints [@hoekstra2023; @du2026a].
+However, such comparisons usually concern two empirical (i.e., stochastic) networks.
+A different scenario arises when researchers wish to evaluate whether an empirical, stochastic network is consistent with a fixed network derived from theory -- a one-sample case which requires different procedures. 
+
+<!-- ## Necessity of theory development and theory-based testing -->
+
+Much has been written about the need to develop stronger theories [@smaldino2019; @smaldino2020a]: From a philosophy of science perspective, many psychological theories remain "weak" in the sense that they do not allow for specific predictions that can be subjected to empirical scrutiny.
+It would therefore be desirable to develop "stronger" theories which allow us to derive precise and testable hypotheses [@eronen2021; @fried2020]. 
+While relevant to psychology in general, these issues have been championed explicitly in the context of network psychometrics [@borsboom2021; @haslbeck2019; @finnemann2026].
+
+Similarly, this distinction can be applied to weaker and stronger hypotheses [@meehl1990] about networks:
+A weaker, *edge-set* hypothesis may only specify which edges are present or absent -- that is, the adjacency structure of the network -- while a stronger, *edge-weight* hypothesis additionally specifies the expected values of these edges.
+Formulating such specific predictions is becoming increasingly feasible: 
+Prior network findings can be compared against new samples [e.g., @kan2020], meta-analytic aggregation of GGMs [MAGNA\; @epskamp2022] allows hypotheses to be informed by cumulative evidence, and formal models can generate data that may be evaluated against empirical observations [@haslbeck2019].
+
+Previous work has recognized this need for one-sample confirmatory procedures [@epskamp2020; @du2025].
+Notably, the R package `psychonetrics` [@epskamp2025] provides an implementation of confirmatory network analysis (CNA) that draws on traditional structural equation modeling (SEM; henceforth SEM-CNA).
+Recent work by @du2025 demonstrated that SEM-based fit indices constitute a viable, practically useful choice for testing edge-set hypotheses against empirical data.
+While this provides important insights into a class of confirmatory procedures, researchers are faced with a substantially broader set of available tools, which also allow for testing edge-weight hypotheses: 
+Beyond SEM indices, a range of hypothesis testing approaches has been developed in fields like biostatistics or economics, where covariance matrix testing is widely used across diverse, often high-dimensional data settings [@cai2017; @emmert-streib2016].
+However, no concrete recommendations for testing edge-weight hypotheses are yet available for psychological networks.
+
+## Goals of the present study
+
+The amount of work dedicated to developing confirmatory approaches in network analysis reflects the relevance of this topic within psychological research.
+The present study aims to contribute to this development by investigating and comparing one-sample hypothesis tests for cross-sectional GGMs.
+While Bayesian approaches to hypothesis testing for GGMs have been proposed [@williams2020; @sekulovski2024], we will focus on frequentist approaches in the present work.
+
+In addition to the classical $\chi^2$ likelihood ratio test and SEM indices investigated by @du2025 for edge-set hypotheses, we consider tests of covariance matrix equality developed for high-dimensional settings, Fisher's $z$ test, and the Mantel test for edge-weight hypotheses.
+Additionally, we include a selection of network estimation methods to obtain sparse network estimates from data, which are then tested against the theoretical model.
+In a simulation study, we evaluate the performance of tests and indices under varying degrees of (dis)similarity between the theoretical and empirical networks, varying network sizes (determined by the number of variables $p$), and sample sizes ($N$).
+
+
+
+# Confirmatory testing for networks {#confirmatory-methods}
+
+## General notation and idea
+
+Generally, the GGM refers to a $p \times p$ partial correlation matrix $\symbf{\Omega}$, whose entries $\omega_{jk}$ represent edge weights between variables (nodes) $j$ and $k$.
+$\symbf{\Omega}$ can be derived from the covariance matrix ${\symbf\Sigma}$, by standardizing the precision matrix $\bf{K} = \symbf{\Sigma}^{-1}$, where each partial correlation is obtained by $\omega_{jk} = -\frac{\kappa_{jk}}{\sqrt{\kappa_{jj} \kappa_{kk}}}$.
+From a dataset $\symbf{X}$ with $N$ observations ($i = 1, \ldots, n$) on $p$ variables, an empirical $\symbf{\hat\Omega}_\text{emp}$ can be estimated.
+The task is to assess how well $\symbf{\hat\Omega}_\text{emp}$ aligns with properties of some theory-derived network $\symbf\Omega_\text{theo}$.
+
+If a researcher limits assumptions to the absence and presence of edges in a network, this edge-set hypothesis can be expressed by the adjacency matrix $\mathbf{A}_\text{theo}$.
+In the SEM-CNA methods described herein, the $H_0$ is operationalized as the empirical matrix constrained by the adjacency $\mathbf{A}_\text{theo}$, compared with the unconstrained empirical matrix:
+
+\begin{equation}
+H_0: \hat{\symbf{\Omega}}_\text{emp} | \mathbf{A}_\text{theo} = \symbf{\hat\Omega}_\text{emp}
+\end{equation}
+
+If one derives specific values for the edges in $\symbf{\Omega}_\text{theo}$, the edge-weight hypothesis postulates matrix equality:
+
+\begin{equation}
+H_0: \symbf\Omega_\text{theo} = \symbf{\hat\Omega}_\text{emp}
+\end{equation}
+
+<!-- Martin: Sind die eigentlichen H_0 nicht $H_0: \symbf{\Omega} = \symbf{\Omega_{\text{theo}}}$ wobei $\symbf{\Omega}$ als Schätzung via $\symbf{\hat\Omega}_\text{emp}$ angenähert werden muss? 
+TK: Eig schon, man könnte es auch einfacher schreiben, um mit der Standard-Schreibweise konsistent zu bleiben. -->
+
+Depending on the procedure, this may be expressed via the correlation matrix $\symbf{\hat{\Sigma}}_\text{emp}$ estimated from $\symbf{X}$, or the correlation matrix $\symbf{\Sigma}_\text{theo}$ corresponding to $\symbf{\Omega}_\text{theo}$.
+In the following, we describe confirmatory methods organized according to the type of network hypothesis they evaluate.
+<!-- Martin: Hier fehlt noch die Überleitung von $\Sigma$ als Kovarianzmatrix (zu Beginn des Abschnitts) zur Nutzung als Korrelationsmatrix (hier am Ende des Abschnitts) -->
+
+<!-- If data is standardized, the Sigma defaults a correlation matrix, as will be assumed in the remainder of the study.  -->
+
+## Edge-set hypotheses
+
+### $\chi^2$ Likelihood Ratio Test
+
+The likelihood ratio test ($\chi^2$-LRT) is one of the classical ways of hypothesis testing for GGMs [@hojsgaard2012], and is implemented for SEM-CNA in the `psychonetrics` package [@epskamp2025].
+It assumes that data follow a multivariate normal distribution with $\symbf{X}_i \sim \mathcal{N}(0, \symbf{\Sigma})$.
+We can test the goodness of fit by computing the likelihood ratio (LR) of the constrained model $\hat{\symbf{\Sigma}}_\text{emp} | \mathbf{A}_\text{theo}$, and the full (saturated) model $\hat{\symbf{\Sigma}}_\text{emp} | \mathbf{A}_\text{sat}$:
+
+\begin{equation}
+T_\text{LR} = -2(\ell_{\text{restricted}} - \ell_{\text{full}}) = \chi^2_{\text{restricted}} - \chi^2_{\text{full}}
+\end{equation}
+
+where $\ell_{\text{restricted}}$ is the log-likelihood of the $\mathbf{A}_\text{theo}$-constrained model, and $\ell_{\text{full}}$ is the log-likelihood of the saturated model.
+Under the $H_0$ that the constrained model is correct, $T_\text{LR}$ is $\chi^2$-distributed with $df_{\text{LR}} = df_{\text{restricted}} - df_{\text{full}}$.
+
+### SEM fit indices 
+
+Because the $\chi^2$-LRT often rejects conceptually adequate models [@bentler1980], various fit indices were developed to complement the decision procedure.
+Here, we focus on fit indices that are commonly used in SEM and have recently been proposed for SEM-CNA [@du2025].
+
+The root mean square error of approximation [RMSEA\; @steiger1990] belongs to the class of approximate fit indices, which compare the given model with a "perfect" saturated model, with smaller values indicating better model fit.
+It quantifies the discrepancy between $\hat{\symbf{\Sigma}}_\text{emp} | \mathbf{A}_\text{theo}$ and $\hat{\symbf{\Sigma}}_\text{emp} | \mathbf{A}_\text{sat}$ in terms of the fit-function, often expressed via $\chi^2$:
+
+\begin{equation}
+\text{RMSEA} = \sqrt{\frac{\max(\chi^2 - df, 0)}{df \times (n-1)}}
+\end{equation}
+
+<!-- Martin: Dieser Abschnitt könnte um ein paar Zustazinfos / allgemeine Tendenzen von RMSEA ergänzt werden:
+  - Versuch der Balancierung für großes N
+  - Tendenz bei wenigen Variablen schlecht auszufallen, bei vielen Variablen misfit zu maskieren (z.B. Moshagen, https://doi.org/10.1080/10705511.2012.634724, Shi et al, https://doi.org/10.1177/0013164418783530)
+-->
+
+Incremental fit indices compare the given model with a baseline model, which assumes full statistical independence between all variables. Here, larger values indicate better fit.
+Among the indices selected for this study are the normed fit index [NFI, Type I\; @bentler1980], the Tucker-Lewis index [TLI, Type II\; @tucker1973], and the comparative fit index [CFI, Type III\; @bentler1990].
+
+\begin{equation}
+\text{NFI} = \frac{\chi^2_B - \chi^2}{\chi^2_B}
+\end{equation}
+\begin{equation}
+\text{TLI} = \frac{\chi^2_B/df_B - \chi^2/df}{\chi^2_B/df_B - 1}
+\end{equation}
+\begin{equation}
+\text{CFI} = \frac{\max(\chi^2_B - df_B, 0) - \max(\chi^2 - df, 0)}{\max(\chi^2_B - df_B, 0)}
+\end{equation}
+
+@du2025 evaluated the performance of SEM indices and their conventional cutoff values in misfit detection for the longitudinal panel vector autoregressive (*panelgvar*) model.
+Most fit indices performed well, except that Type I incremental fit indices showed high false rejection rates and poorer robustness against $N$ and $p$ compared to RMSEA and Type II/III indices.
+Conventional SEM cutoffs were largely generalizable in lieu of dynamic cutoffs, but stricter cutoff values for hypothesis testing or replication studies were recommended.
+Moreover, their behavior is not invariant across network and sample size: All indices required a sufficiently large $N$, and some were sensitive to $p$, with performance degrading as dimensionality $p \times p$ increased.
+
+<!-- Martin: Der letzte Satz ist erwartbar, weil vor 14 Jahren für SEM abschließend dargelegt (Moshagen, 2012) -->
+
+<!-- Martin: Weil hier allgemeine Aussagen über beide Formen von Fit Measures gemacht werden, würde ich die Teilüberschriften für RMSEA und incremental entfernen, damit das hier klar als Abschluss des Abschnitts "Edge-Set Hypotheses" gelten kann
+TK: done -->
+
+## Edge-weight hypotheses
+
+### Standardized root mean square residual (SRMR)
+
+The SRMR [@bentler2006] is commonly used as an approximate SEM fit index. 
+Unlike RMSEA or incremental fit indices, it operates directly on element-wise residuals between the empirical and theoretical correlation matrices.
+Therefore, we group it with other edge-weight methods and utilize it as a residual-based measure of matrix discrepancy:
+
+\begin{equation}
+\text{SRMR} = \sqrt{\frac{\sum_{i<j}(\hat{\symbf{\Sigma}}_{\text{emp},ij} - \symbf{\Sigma}_{\text{theo},ij})^2}{p(p-1)/2}},
+\end{equation}
+
+### Covariance tests for high-dimensional settings
+
+In high-dimensional settings, where the dimension $p$ can be comparable to or larger than $N$, conventional tests like the LRT perform poorly or cannot be computed at all [e.g., @cai2013].
+Even though $p > N$ is rare in psychological research, a $p$- and $N$-consistent test may be beneficial for overcoming challenges posed by $N$-sensitive indices.
+Out of many available tests of the matrix-equality null hypothesis, $H_0: \Sigma = \Sigma_0$ [see review by @cai2017], we selected two that demonstrated favorable characteristics and for which implementations are readily available.
+
+<!-- Martin: Notation $H_0: \Sigma = \Sigma_0$ hier inkonsistent mit theo/emp Bezeichnungen an anderen Stellen. Auch im Folgenden (LDW): warum H_0 nicht in gleicher Weise formulieren wie oben? Bei Cai dann wieder konsistent mit oben -->
+
+#### Ledoit-Wolf test
+
+@ledoit2002 proposed a test for $H_0: \Sigma = I$.
+This generalizes to any null hypothesis of the form $H_0: \Sigma = \Sigma_0$ by applying a whitening transformation with respect to $\symbf{\Sigma}_\text{theo}$.
+Whitening can be applied either to the raw data ($X^* = \symbf{\Sigma}_\text{theo}^{-1/2}X$) or directly to the estimated covariance matrix:
+
+\begin{equation}
+\hat{\symbf{\Sigma}}_\text{emp}^* = \symbf{\Sigma}_\text{theo}^{-1/2} \hat{\symbf{\Sigma}}_\text{emp} \symbf{\Sigma}_\text{theo}^{-1/2},
+\end{equation}
+
+such that $\hat{\symbf{\Sigma}}_\text{emp}^*$ is expected to equal $I$ when $H_0$ is true.
+$\hat{\symbf{\Sigma}}_\text{emp}^*$ can then be plugged into the test statistic:
+
+\begin{equation}
+T_\text{LW} = \frac{1}{p}\text{tr}[(\symbf{\hat{\Sigma}}_\text{emp}^{*} - I)^2] - \frac{p}{n}\left(\frac{1}{p}\text{tr}(\symbf{\hat{\Sigma}}_\text{emp}^{*})\right)^2 + \frac{p}{n}
+\end{equation}
+
+<!-- Since regularization-based estimation methods may behave differently depending on whether the underlying matrix is more dense (if unwhitened), or sparse (which would inevitably be the case if we whitened the data with respect to $\Sigma_\text{theo}$ and $H_0$ was true), we will first estimate the network model on the original scale, then subsequently apply the whitening transformation to the resulting $\hat\Sigma_\text{emp}$. -->
+
+This matrix-based formulation allows us to apply edge selection procedures on the original data scale before whitening the resulting $\hat{\symbf{\Sigma}}_\text{emp}$ and passing it to $T_\text{LW}$.
+
+#### Cai-Ma test {#cai}
+
+@cai2013 proposed a test that achieves superior power to corrected high-dimensional LRT versions, and that, like the Ledoit-Wolf test, can be applied to test $H_0: \symbf{\Sigma} = \symbf{\Sigma}_\text{theo}$ via whitening.
+However, because it employs a U-statistic over pairs of observations, only data-level ($\symbf{X}^* = \symbf{\Sigma}_\text{theo}^{-1/2}\symbf{X}$) is applicable here.
+Deviations from $H_0$ are quantified by the Frobenius norm of the difference matrix $\|\symbf{\Sigma} - I\|_F^2 = \text{tr}[(\symbf{\Sigma} - I)^2]$, on which the test statistic $T_{CM}$ is based:
+
+\begin{equation}
+T_\text{CM} = \frac{2}{n(n-1)} \sum_{1 \leq i < j \leq n} h(\symbf{X}_i^*, \symbf{X}_j^*),
+\end{equation}
+
+where $h$ is calculated from any two whitened observations $\mathbf{X}_i^*$ and $\mathbf{X}_j^*$:
+
+\begin{equation}
+h(\symbf{X}_i^*, \symbf{X}_j^*) = (\symbf{X}_i^{*\prime}\symbf{X}_j^*)^2 - (\symbf{X}_i^{*\prime}\symbf{X}_i^* + \symbf{X}_j^{*\prime}\symbf{X}_j^*) + p.
+\end{equation}
+
+Under $H_0$ and assuming normally distributed observations, $T_\text{CM}$ is asymptotically normal.
+We reject $H_0$ if $T_\text{CM} > c_\alpha = 2z_{1-\alpha}\sqrt{\frac{p(p+1)}{n(n-1)}}$.
+
+### Fisher's one-sample $z$ test
+
+Fisher's $z$ test is a traditional frequentist method introduced by @fisher1915.
+Assuming approximate normality, the $z$-scores of the transformed differences between entries of $\symbf{\Omega}_\text{theo}$ and $\symbf{\hat\Omega}_\text{emp}$ are tested against the null hypothesis of being zero:
+
+\begin{equation}
+z_{ij} = \frac{z(\symbf{\hat\Omega}_{\text{emp},ij}) - z(\symbf{\Omega}_{\text{theo},ij})} {\sqrt{1 / (n-p-1)}}
+\end{equation}
+
+An edge-wise multiple testing correction is applied, and the matrix-equality null is rejected if at least one edge difference is non-zero.
+The test can be applied directly to $\symbf\Omega$ to ease interpretation of edge differences.
+For the two-sample case, @haslbeck2022 showed that due to the multiple testing correction, the test can be rather conservative.
+
+### Mantel Test
+
+The Mantel test [@mantel1967] is a classical, non-parametric method for testing the correlation between two distance matrices, which does not rely on distributional assumptions.
+Generally, it allows us to test $H_0: r_{g}(\symbf{\Omega}_\text{theo}, \symbf{\hat\Omega}_\text{emp}) = 0$ by repeatedly permuting the rows and columns of $\symbf{\hat\Omega}_\text{emp}$ and computing its graph correlation $r_{g}$ with $\symbf{\Omega}_\text{theo}$, given by
+
+\begin{equation}
+r_{g} = \frac{\sum \Big( \Omega_{\text{theo},ij} - \bar{\Omega}_{\text{theo}} \Big) \Big( \hat{\Omega}_{\text{emp},ij} - \bar{\hat{\Omega}}_{\text{emp}} \Big)}{\sqrt{\sum \Big( \Omega_{\text{theo},ij} - \bar{\Omega}_{\text{theo}} \Big)^2 \sum \Big( \hat{\Omega}_{\text{emp},ij} - \bar{\hat{\Omega}}_{\text{emp}} \Big)^2}},
+\end{equation}
+
+where $\bar{\Omega}$ denotes the means of the off-diagonal entries of $\symbf{\Omega}_\text{theo}$ and $\symbf{\hat\Omega}_\text{emp}$, respectively.
+Like other correlation measures, $r_{g}$ ranges from $-1$ (perfectly negatively correlated) to 1 (perfectly positively correlated).
+The null hypothesis of zero correlation is contrary to our intended hypothesis of matrix similarity.
+It is possible, however, to reverse the direction of the hypothesis by simulating the distribution of $r_{g}$ under the $H_0$ that $\symbf{\Omega}_\text{theo}$ and $\symbf{\hat\Omega}_\text{emp}$ are identical, and to subsequently test whether the observed $|r_{g}|$ is significantly smaller than $1$ (i.e., $H_0: r_g(\symbf{\Omega}_\text{theo}, \symbf{\hat\Omega}_\text{emp}) = 1$) instead.
+
+## Estimation methods for model selection {#estimation-methods}
+
+In applied network analysis, researchers may not typically work with the fully saturated network estimated from the data, but employ estimation methods to remove small or spurious edges from consideration [@epskamp2018]. 
+However, despite sometimes being treated this way, estimation procedures do not constitute formal statistical inference and may introduce systematic bias [@williams2019; @williams2020d]; and network inference especially with regularized estimation remains an active area of research [@waldorp2024]. 
+We therefore incorporate a selection of prevalent estimation techniques alongside the confirmatory methods to assess how estimation impacts subsequent test performance.
+
+### Regularized estimators
+
+One of the most popular estimation methods is the graphical least absolute shrinkage and selection operator [*glasso*, @friedman2008].
+To determine the appropriate degree of regularization, it is often applied in combination with the extended Bayesian Information Criterion (EBIC) for model selection.
+It employs a convex $\ell_1$ regularization penalty to obtain sparse, interpretable model solutions. 
+However, this comes at the cost of favoring overly sparse networks and underestimating larger edges (shrinkage bias) especially in smaller samples, while retaining weak false-positive edges and thus exhibiting lower specificity in denser networks and larger samples [@isvoranu2023; @williams2019].
+
+While regularization methods have been the subject of frequent criticism [@williams2019; @williams2020], some techniques have been shown to perform better in recovering the true population matrix than others [@waldorp2024].
+One promising candidate is the nonconvex arctangent (*atan*) regularization penalty [@wang2016].
+It also penalizes for sparsity, but introduces less bias for larger coefficients, allowing for better recovery of the true sparsity pattern.
+Including it allows us to examine whether reduced shrinkage bias translates to improved performance in confirmatory testing.
+
+### Nonregularized estimators
+
+An unregularized approach is GGM estimation combined with stepwise model selection [*ggmModSelect*, @epskamp2025]. 
+<!-- Martin: würde ich nicht direkt "nonregularized" nennen, weil GGM Mod Select explizit an jedem Schritt den glasso anwendet, nur hinterher refitted 
+TK: Wird aber so bezeichnet in der Dokumentation weil nach Erstauswahl von 100 Modellen refitted wird? --> 
+
+Unlike glasso regularization, it re-estimates nonzero parameters without shrinkage, leading to asymptotic consistency for higher $N$.
+The second is *nodewise regression* (or neighborhood selection) with Bayesian Information Criterion (BIC) forward selection [@yang2015].
+In this approach, all nodes are treated as predictors of one node at a time, and the predictor that minimizes the BIC is selected first.
+Predictors are incrementally added until BIC can no longer be minimized.
+In comparative evaluations, nodewise regression performed well at moderate to large $N$, and showed favorable trade-offs between sensitivity and specificity [@isvoranu2023].
+Varying sparsity of the true networks had minimal impact on the results of nodewise regression compared to glasso [@nehler2024a; @williams2019], which may be beneficial if density differences are a feature of interest.
+
+## Expectations
+
+Based on the properties of the reviewed methods, when $H_0$ is true, we expect the high-dimensional covariance tests (Ledoit-Wolf, Cai-Ma) to maintain $\alpha$ error rates closer to nominal $\alpha$ than the $\chi^2$-LRT and SEM indices, especially in small samples or higher dimensions.
+When $H_0$ is false -- that is, when the theoretical and empirical networks differ -- all methods should show increasing power with increasing $N$ and dissimilarity between $\symbf\Omega_\text{theo}$ and $\symbf{\hat\Omega}_\text{emp}$, with superior power of high-dimensional covariance tests in conditions with higher $p$.
+Consistently with prior findings [@du2025], we expect $\chi^2$-LRT and SEM indices to be sensitive to both $N$ and rising dimensionality $p$.
+In line with @haslbeck2022, we expect Fisher's $z$-test to be more conservative, particularly for larger $p$, due to the increasing number of pairwise comparisons and the associated multiple testing correction.
+Regarding estimation methods, we expect atan, ggmModSelect, and nodewise to yield less biased edge weight estimates than glasso, potentially leading to better performance of the hypothesis tests that operate on the estimated network.
+We expect the regularized estimators' -- most prominently glasso's -- tendency to produce sparser networks to systematically affect performance: 
+Under misspecification, we expect reduced power to detect an overly dense $\symbf{\hat\Omega}_\text{emp}$ (as the estimation method will shrink added edges to zero, counteracting the direction of misspecification). 
+Conversely, we expect to observe elevated power to detect an overly sparse $\symbf{\hat\Omega}_\text{emp}$, as the shrinkage bias coincides with the direction of misspecification
+<!-- , though only for methods sensitive to this direction of misspecification -->
+.
+Under $H_0$, this bias should result in elevated $\alpha$ error rates
+<!-- for tests which are sensitive to detecting reduced density, while tests that are unable to do so will show nominal or lower $\alpha$ error rates due to overretaining $H_0$. -->
+.
+
+<!-- Tatiana: Im Ergebnisteil: -->
+<!-- Erwartungen bzgl. Regularizer wurden inkl. Richtung der specification (over/under) sensitivity erwähnen. Wurden aber nur teilweise in der Deutlichkeit erfüllt. -->

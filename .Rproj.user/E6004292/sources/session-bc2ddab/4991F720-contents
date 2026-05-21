@@ -1,0 +1,851 @@
+######## Bootstrap Inference for Confirmatory Network Analysis #################
+
+# Prodecure:
+# 1. Simulate nboots H0 samples from theo_cor (parametric bootstrap)
+# 2. If estimation != "none": estimate network from each sample
+# 3. Apply test function to each bootstrap sample to obtain null distribution of 
+#    test statistic from these
+# 4. Compare observed statistic to null distribution --> p-value, critical value
+#
+# Based on: boot_inference(), boot_inference_fisher(), custom_net_boot(), and
+#           custom_net_sim() from the simulation study (helper_functions.R).
+#
+# Required packages:
+#   corpcor   -- pcor2cor, cor2pcor
+#   MASS      -- mvrnorm
+#   qgraph    -- EBICglasso, ggmModSelect, ggmFit
+#   mantar    -- regularization_net, neighborhood_net (if estimation = "atan"/"nodewise")
+#   CovTools  -- CovTest1.2013Cai, CovTest1.2014Srivastava
+#   BGGM      -- fisher_z internal function (if fun = "fisher_z")
+
+
+# HELPER FUNCTIONS -------------------------------------------------------------
+
+## Package checker ----
+
+.check_packages <- function(fun, estimation) {
+  need <- function(pkg)
+    if (!requireNamespace(pkg, quietly = TRUE))
+      stop('Please install package "', pkg, '" first!')
+
+  need("corpcor"); need("MASS"); need("psych"); need("progress")
+
+  if (estimation %in% c("glasso", "ggmModselect") ||
+      (is.character(fun) && fun == "sem_cna"))            need("qgraph")
+  if (estimation %in% c("atan", "nodewise"))              need("mantar")
+  if (is.character(fun) && fun %in% c("cai", "srivastava")) need("CovTools")
+  if (is.character(fun) && fun == "fisher_z")             need("BGGM")
+}
+
+
+## Low-level utilities ----
+
+# Forces exact symmetry -- eliminates floating-point drift after solve() or cov2cor()
+make_symmetric <- function(x) (x + t(x)) / 2
+
+
+# Extracts single numeric value from varied return types
+# (plain number, or list with $statistic / $value)
+extract_stat <- function(res) {
+  if (is.null(res))                               return(NA_real_)
+  if (is.numeric(res))                            return(as.numeric(res)[1])
+  if (is.list(res) && !is.null(res$statistic))    return(as.numeric(res$statistic))
+  if (is.list(res) && !is.null(res$value))        return(as.numeric(res$value))
+  NA_real_
+}
+
+
+
+# Suppresses all console output -- catches cat()/print() too, unlike suppressMessages()
+quiet <- function(expr) {
+  zz1 <- textConnection("out", "w", local = TRUE)
+  zz2 <- textConnection("msg", "w", local = TRUE)
+  sink(zz1)
+  sink(zz2, type = "message")
+  on.exit({
+    sink(type = "message")
+    sink()
+    close(zz2)
+    close(zz1)
+  }, add = TRUE)
+  force(expr)
+}
+
+
+# Estimates partial correlation matrix from raw data
+# est_method controls whether and how regularization is applied
+estimate_net <- function(dat, est_method) {
+  switch(est_method,
+
+    "none" = {
+      corpcor::cor2pcor(stats::cor(dat))
+    },
+    "glasso" = {
+      qgraph::EBICglasso(stats::cor(dat), n = nrow(dat), gamma = 0.5) |> quiet()
+    },
+    "ggmModselect" = {
+      qgraph::ggmModSelect(stats::cor(dat), n = nrow(dat),
+                           verbose = FALSE, gamma = 0)$graph |> quiet()
+    },
+    "atan" = {
+      mantar::regularization_net(mat = stats::cor(dat), ns = nrow(dat),
+                                 penalty = "atan", likelihood = "mat_based",
+                                 vary = "lambda", n_gamma = 1)$pcor
+    },
+    "nodewise" = {
+      mantar::neighborhood_net(mat = stats::cor(dat),
+                               ns = nrow(dat), ic_type = "bic")$pcor
+    },
+    stop("Unknown estimation method: '", est_method, "'")
+  )
+}
+
+
+## Test statistics and metrics ----
+
+# Jaccard index: proportion of edges present in both matrices relative to all edges
+# Returns 1 if both matrices have no edges (perfect agreement on empty graph)
+jaccard_index <- function(mat1, mat2) {
+  e1  <- mat1 != 0
+  e2  <- mat2 != 0
+  idx <- upper.tri(e1, diag = FALSE)
+
+  intersection <- sum(e1[idx] & e2[idx])   # nonzero in both
+  union        <- sum(e1[idx] | e2[idx])   # nonzero in either
+
+  if (union == 0) return(1)
+  intersection / union
+}
+
+
+# Kullback-Leibler divergence between two covariance matrices
+# estimate = empirical, true = theoretical
+# From GGMncv package
+kld <- function(estimate, true, stein = FALSE) {
+  Sigma    <- true
+  Theta    <- solve(Sigma)
+  hatTheta <- solve(estimate)
+  p        <- ncol(Theta)
+
+  stein_loss <- sum(diag(Sigma %*% hatTheta)) - log(det(Sigma %*% hatTheta)) - p
+
+  if (isFALSE(stein)) {
+    return(stein_loss * 0.5)
+  } else {
+    return(stein_loss)
+  }
+}
+
+
+# Jensen-Shannon divergence between two covariance matrices
+js_divergence <- function(sigma1, sigma2) {
+  M   <- 0.5 * (sigma1 + sigma2)     # mixture distribution
+  kl1 <- kld(true = sigma1, estimate = M)
+  kl2 <- kld(true = sigma2, estimate = M)
+  0.5 * (kl1 + kl2)
+}
+
+
+# Simplified graph edit distance + classification metrics (TP, FP, FN, TN, F1, etc.)
+# Adjusted from: https://rdrr.io/github/kelvinyangli/wrsgraph/src/R/edit_dist_graph.R
+get_graph_metrics <- function(learned, true, debug = FALSE) {
+
+  # convert to binary adjacency
+  learned <- ifelse(learned == 0, 0, 1)
+  true    <- ifelse(true    == 0, 0, 1)
+
+  tp = tn = fp = fn = 0
+
+  for (i in 1:(nrow(true) - 1)) {
+    for (j in (i + 1):ncol(true)) {
+      if      (true[i, j] == 1 && learned[i, j] == 1) tp <- tp + 1
+      else if (true[i, j] == 1 && learned[i, j] == 0) fn <- fn + 1
+      else if (true[i, j] == 0 && learned[i, j] == 1) fp <- fp + 1
+      else                                             tn <- tn + 1
+    }
+  }
+
+  pre <- ifelse(tp + fp == 0, 0, round(tp / (tp + fp), 2))
+  rec <- ifelse(tp + fn == 0, 0, round(tp / (tp + fn), 2))
+  f1  <- ifelse(pre + rec == 0, 0, round(2 * pre * rec / (pre + rec), 2))
+
+  if (debug) {
+    cat("tp:", tp, "fp:", fp, "fn:", fn, "tn:", tn, "\n")
+    cat("pre:", pre, "rec:", rec, "f1:", f1, "sed:", fp + fn, "\n")
+  }
+
+  list(tp = tp, fp = fp, tn = tn, fn = fn,
+       precision = pre, recall = rec, f1 = f1, sed = fp + fn)
+}
+
+
+# Standardized Root Mean Square Residual
+# Off-diagonal only (diagonal carries no model misfit information)
+get_SRMR <- function(mat1, mat2) {
+  p               <- ncol(mat1)
+  off_diag        <- upper.tri(mat1, diag = FALSE)
+  diff_sq         <- (mat2[off_diag] - mat1[off_diag])^2
+  sqrt(sum(diff_sq) / (p * (p - 1) / 2))
+}
+
+
+# Whitening transformation: transforms x s.t. Sigma0 becomes its covariance structure
+# Used by calculate_W to bring x onto the identity-hypothesis scale
+whiten_cov <- function(S, Sigma0) {
+  e0           <- eigen(Sigma0, symmetric = TRUE)
+  Sig_inv_half <- e0$vectors %*% diag(1 / sqrt(e0$values)) %*% t(e0$vectors)
+  Sig_inv_half %*% S %*% Sig_inv_half
+}
+
+
+# Ledoit-Wolf (2002) chi-squared test statistic (internal)
+LedoitWolf2002_ <- function(n, p, S_) {
+  mid <- S_ - diag(1, p)
+  n * p * (psych::tr(mid %*% mid) / p -
+           (p / n) * ((psych::tr(S_) / p) ^ 2) +
+           (p / n)) / 2
+}
+
+
+# Ledoit-Wolf (2002) test for covariance matrix equality
+# x = empirical cor. matrix, Sigma = theoretical cor. matrix
+# Adjusted from: https://rdrr.io/github/BenBarnard/covTestR/src/R/LedoitWolf2002.R
+calculate_W <- function(x, Sigma, n, ...) {
+  p  <- ncol(x)
+  S_ <- if (identical(Sigma, "identity")) x else whiten_cov(x, Sigma)
+
+  statistic <- LedoitWolf2002_(n, p, S_)
+  df        <- p * (p + 1) / 2
+  p.value   <- 1 - pchisq(statistic, df)
+
+  list(statistic    = statistic,
+       df           = df,
+       p.value      = p.value,
+       is_different = p.value < 0.05)
+}
+
+
+# Graph correlation r_g: Pearson correlation between upper triangle entries of x and y
+calculate_graph_cor <- function(x, y, ...) {
+  idx <- upper.tri(x, diag = FALSE)
+  cor(x[idx], y[idx])
+}
+
+
+# Significance stars from p-value
+add_stars <- function(p) {
+  as.character(cut(p,
+    breaks = c(-Inf, 0.001, 0.01, 0.05, 0.1, Inf),
+    labels = c("***", "**", "*", ".", "")
+  ))
+}
+
+
+# TEST REGISTRY ----------------------------------------------------------------
+# Maps test name (string) to its function, alternative direction, and input type
+
+.TEST_REGISTRY <- list(
+
+  ## Descriptive / distance metrics ----
+
+  frobenius   = list(fun         = function(a, b, ...) norm(a - b, type = "F"),
+                     alternative = "greater",
+                     input_type  = "pcor"),
+
+  jaccard     = list(fun         = function(a, b, ...) jaccard_index(a, b),
+                     alternative = "less",
+                     input_type  = "pcor"),
+
+  kld         = list(fun         = function(a, b, ...) kld(a, b),
+                     alternative = "greater",
+                     input_type  = "cor"),
+
+  jsd         = list(fun         = function(a, b, ...) js_divergence(a, b),
+                     alternative = "greater",
+                     input_type  = "cor"),
+
+  sged        = list(fun         = function(a, b, ...) get_graph_metrics(a, b)$sed,
+                     alternative = "greater",
+                     input_type  = "pcor"),
+
+  ## SEM / approximate fit indices ----
+  # srmr_cor / srmr_pcor: SRMR on correlation or partial correlation matrices
+  # sem_cna: multiple SEM fit indices via qgraph::ggmFit -- returns one row per index
+
+  srmr_cor    = list(fun         = function(a, b, ...) get_SRMR(a, b),
+                     alternative = "greater",
+                     input_type  = "cor"),
+
+  srmr_pcor   = list(fun         = function(a, b, ...) get_SRMR(a, b),
+                     alternative = "greater",
+                     input_type  = "pcor"),
+
+  sem_cna     = list(fun         = function(emp_pcor, theo_pcor, n, ...) {
+                       theo_adj <- (theo_pcor != 0) * 1; diag(theo_adj) <- 0
+                       emp_cor  <- make_symmetric(corpcor::pcor2cor(emp_pcor))
+                       m <- qgraph::ggmFit(pcor = theo_adj, covMat = emp_cor,
+                                           sampleSize = n, verbose = FALSE) |> quiet()
+                       unlist(m$fitMeasures)
+                     },
+                     alternative = NULL,        # per-index direction in .SEM_ALTERNATIVES
+                     input_type  = "pcor",
+                     is_multi    = TRUE),
+
+  ## High-dimensional covariance matrix tests ----
+  # ledoit_wolf: Ledoit & Wolf (2002) 
+  # cai:         Cai & Ma (2013); requires raw data
+  # srivastava:  Srivastava (2014); requires raw data
+
+  ledoit_wolf = list(fun         = function(a, b, n, ...) calculate_W(a, b, n = n),
+                     alternative = "greater",
+                     input_type  = "cor"),
+
+  cai         = list(fun         = function(a, b, ...) {
+                       res <- CovTools::CovTest1.2013Cai(a, Sigma0 = b)
+                       list(statistic = res$statistic, crit_val = res$threshold)
+                     },
+                     alternative = "greater",
+                     input_type  = "raw"),
+
+  srivastava  = list(fun         = function(a, b, ...) {
+                       res <- CovTools::CovTest1.2014Srivastava(a, Sigma0 = b)
+                       list(statistic = res$statistic, crit_val = res$threshold)
+                     },
+                     alternative = "greater",
+                     input_type  = "raw"),
+
+  ## Graph correlation / Mantel ----
+  # alternative = "less": lower r_g means the networks are more different
+
+  mantel      = list(fun         = function(a, b, ...) calculate_graph_cor(a, b),
+                     alternative = "less",
+                     input_type  = "pcor"),
+
+  ## Fisher Z (element-wise per edge, not a scalar statistic) ----
+
+  fisher_z    = list(fun         = NULL,
+                     alternative = NULL,
+                     input_type  = "pcor",
+                     is_fisher   = TRUE)
+)
+
+
+# MAIN FUNCTION ----------------------------------------------------------------
+
+# fun can be:
+#   a) string -- registered test name (see .TEST_REGISTRY above)
+#      -> alternative and input_type set automatically
+#   b) custom function: fun(emp_mat, theo_mat, ...) -> number or list
+#      -> alternative and input_type must be specified explicitly
+
+boot_inference <- function(
+    fun,
+    # string (registered test name) or custom function: fun(emp_mat, theo_mat, ...)
+
+    estimation  = c("none", "glasso", "ggmModselect", "atan", "nodewise"),
+    # network estimation method applied to each H0 bootstrap sample
+
+    data        = NULL,
+    # raw data matrix (n * p); required only for fun = "cai" or "srivastava"
+
+    emp_pcor    = NULL,
+    # empirical partial correlation matrix (diagonal may be 0 -- set to 1 automatically)
+    # required if data is not provided; emp_cor is derived from this for the observed test
+
+    theo_pcor,
+    # theoretical (null) partial correlation matrix (diagonal may be 0 -- set to 1 automatically)
+    # H0 bootstrap samples simulated from theo_cor (derived from this)
+
+    nboots      = 1000,
+
+    n,
+    # sample size:
+    #   - H0 data simulated as mvrnorm(n, 0, theo_cor) for each bootstrap sample
+    #   - automatically passed into every stat_fun call (ledoit_wolf, sem_cna need it)
+
+    alpha       = 0.05,
+
+    alternative = NULL,
+    # auto-determined from registered test; for custom functions specify manually:
+    #   "greater"  : reject when obs > H0 critical value (most tests)
+    #   "less"     : reject when obs < H0 critical value (e.g., Mantel r_g)
+    #   "two.sided": two-tailed
+
+    input_type  = NULL,
+    # auto-determined from registered test; for custom functions specify manually:
+    #   "pcor" : partial correlation matrices
+    #   "cor"  : full correlation matrices (Ledoit-Wolf, KLD, JSD, SRMR-cor)
+    #   "raw"  : raw data matrices (Cai 2013, Srivastava 2014)
+
+    seed        = NULL,
+    # set for reproducibility
+
+    ...) {
+    # additional arguments passed through to fun()
+
+
+  # 0. Resolve test from registry or validate custom function ------------------
+
+  is_fisher <- FALSE
+  is_multi  <- FALSE
+
+  if (is.character(fun)) {
+    if (!fun %in% names(.TEST_REGISTRY)) {
+      stop("Unknown test '", fun, "'. Available: ",
+           paste(names(.TEST_REGISTRY), collapse = ", "))
+    }
+    spec        <- .TEST_REGISTRY[[fun]]
+    stat_fun    <- spec$fun
+    alternative <- spec$alternative
+    input_type  <- spec$input_type
+    is_fisher   <- isTRUE(spec$is_fisher)
+    is_multi    <- isTRUE(spec$is_multi)
+
+  } else if (is.function(fun)) {
+    stat_fun <- fun
+    if (is.null(alternative)) stop("Specify alternative = 'greater'/'less'/'two.sided' for custom functions.")
+    if (is.null(input_type))  stop("Specify input_type = 'pcor'/'cor'/'raw' for custom functions.")
+
+  } else {
+    stop("'fun' must be a string (registered test name) or a function.")
+  }
+
+  alternative <- match.arg(alternative, c("greater", "less", "two.sided"))
+  input_type  <- match.arg(input_type,  c("pcor", "cor", "raw"))
+  estimation  <- match.arg(estimation)
+
+  .check_packages(fun, estimation)
+
+  # 1. Input validation and preprocessing --------------------------------------
+
+  # fix diagonals: if all zeros, set to 1
+  if (all(diag(theo_pcor) == 0)) diag(theo_pcor) <- 1
+  if (!is.null(emp_pcor) && all(diag(emp_pcor) == 0)) diag(emp_pcor) <- 1
+
+  if (is.null(data) && is.null(emp_pcor)) {
+    stop("Either 'data' (raw data matrix) or 'emp_pcor' must be provided.")
+  }
+
+  # derive emp_pcor from raw data if not supplied directly
+  if (is.null(emp_pcor)) {
+    emp_pcor <- estimate_net(data, estimation)
+    diag(emp_pcor) <- 1
+  }
+
+  # Cai and Srivastava need raw data passed to fun()
+  if (input_type == "raw" && is.null(data)) {
+    stop("fun = 'cai' or 'srivastava' requires raw 'data' to be provided.")
+  }
+
+  p        <- ncol(emp_pcor)
+  emp_cor  <- make_symmetric(corpcor::pcor2cor(emp_pcor))
+  theo_cor <- make_symmetric(corpcor::pcor2cor(theo_pcor))
+
+
+  # 2. Set seed ----------------------------------------------------------------
+
+  if (!is.null(seed)) set.seed(seed)
+
+
+  # 3. Pre-compute matrices passed to stat_fun ---------------------------------
+
+  emp_mat  <- switch(input_type,
+    "pcor" = emp_pcor,
+    "cor"  = emp_cor,
+    "raw"  = data
+  )
+  theo_mat <- switch(input_type,
+    "pcor" = theo_pcor,
+    "cor"  = theo_cor,
+    "raw"  = theo_cor   # Cai/Srivastava take theo_cor as the null covariance structure
+  )
+
+
+  # 4. Compute observed test statistic ----------------------------------------
+  # Skipped for fisher_z (computed inside .boot_inference_fisher_z)
+  # For sem_cna (is_multi): stores named vector of all fit indices
+
+  obs_measures <- NULL
+  if (!is_fisher && !is_multi) {
+    test_obj  <- tryCatch(
+      stat_fun(emp_mat, theo_mat, n = n, ...),
+      error = function(e) {
+        warning("stat_fun() failed on observed data: ", conditionMessage(e))
+        NA_real_
+      }
+    )
+    test_list <- if (is.list(test_obj)) unclass(test_obj) else list(value = test_obj)
+    obs       <- extract_stat(test_obj)
+  } else if (is_multi) {
+    obs_measures <- tryCatch(
+      stat_fun(emp_mat, theo_mat, n = n, ...),
+      error = function(e) {
+        warning("stat_fun() failed on observed data: ", conditionMessage(e))
+        NULL
+      }
+    )
+  }
+
+
+  # 5. Bootstrap loop ----------------------------------------------------------
+  # Simulate H0 sample + apply test in one step so the progress bar covers both.
+  # For Fisher Z: store pcor matrices instead (test computation is near-instant).
+  # Update bar every ~1% of iterations to avoid blinking in RStudio.
+  # Samples where pcor2cor fails or produces non-finite values are dropped.
+
+  if (is_fisher) {
+    boot_h0_pcor     <- vector("list", nboots)
+  } else if (is_multi) {
+    boot_h0_measures <- vector("list", nboots)
+  } else {
+    vals_h0 <- rep(NA_real_, nboots)
+  }
+  n_valid_h0 <- 0L
+
+  pb <- progress::progress_bar$new(
+    format     = "  bootstrapping [:bar] :percent eta: :eta",
+    total      = nboots, clear = FALSE, width = 60,
+    current    = "=",
+    incomplete = " "
+  )
+
+  for (i in seq_len(nboots)) {
+
+    h0_data_i <- MASS::mvrnorm(n = n, mu = rep(0, p), Sigma = theo_cor)
+    h0_net_i  <- tryCatch(estimate_net(h0_data_i, estimation), error = function(e) NULL)
+
+    if (!is.null(h0_net_i)) {
+      diag(h0_net_i) <- 1
+      h0_cor_i <- tryCatch(make_symmetric(corpcor::pcor2cor(h0_net_i)),
+                           error = function(e) NULL)
+
+      if (!is.null(h0_cor_i) && all(is.finite(h0_cor_i))) {
+        n_valid_h0 <- n_valid_h0 + 1L
+
+        if (is_fisher) {
+          boot_h0_pcor[[i]] <- h0_net_i
+        } else {
+          boot_mat_i <- switch(input_type,
+            "pcor" = h0_net_i,
+            "cor"  = h0_cor_i,
+            "raw"  = h0_data_i
+          )
+          res_i <- tryCatch(stat_fun(boot_mat_i, theo_mat, n = n, ...), error = function(e) NULL)
+          if (is_multi) {
+            if (!is.null(res_i)) boot_h0_measures[[i]] <- res_i
+          } else {
+            vals_h0[i] <- extract_stat(res_i)
+          }
+        }
+      }
+    }
+
+    pb$tick()
+  }
+
+  cat(sprintf("Valid H0 bootstrap samples: %d (of %d requested)\n", n_valid_h0, nboots))
+
+
+  # 6. Route to special handlers -----------------------------------------------
+
+  if (is_multi) {
+    boot_h0_measures <- Filter(Negate(is.null), boot_h0_measures)
+    return(.boot_inference_sem(
+      obs_measures     = obs_measures,
+      boot_h0_measures = boot_h0_measures,
+      alpha            = alpha,
+      n_valid_h0       = n_valid_h0
+    ))
+  }
+
+  if (is_fisher) {
+    boot_h0_pcor <- Filter(Negate(is.null), boot_h0_pcor)
+    return(.boot_inference_fisher_z(
+      emp_pcor     = emp_pcor,
+      theo_pcor    = theo_pcor,
+      boot_h0_pcor = boot_h0_pcor,
+      n            = n,
+      alpha        = alpha,
+      n_valid_h0   = n_valid_h0
+    ))
+  }
+
+
+  # 7. Initialize output -------------------------------------------------------
+  # NULL = intentionally not computed; NA = computation attempted but failed
+
+  out <- c(
+    test_list,
+    list(
+      crit_val_boot = NULL,
+      pval_boot     = NULL,
+      is_diff_boot  = NULL,
+      n_valid_h0    = n_valid_h0
+    )
+  )
+
+
+  # 8. p-value and critical value from H0 null distribution -------------------
+  # What would the statistic look like if H0 were true? Compare obs to that.
+
+  vals_h0 <- vals_h0[!is.na(vals_h0)]
+
+  if (length(vals_h0) > 0) {
+
+    if (alternative == "greater") {
+      out$crit_val_boot <- stats::quantile(vals_h0, probs = 1 - alpha, na.rm = TRUE)
+    } else if (alternative == "less") {
+      out$crit_val_boot <- stats::quantile(vals_h0, probs = alpha, na.rm = TRUE)
+    } else {
+      out$crit_val_boot <- stats::quantile(vals_h0, probs = c(alpha/2, 1 - alpha/2), na.rm = TRUE)
+    }
+
+    out$pval_boot <- if (alternative == "greater") {
+      mean(vals_h0 >= obs, na.rm = TRUE)
+    } else if (alternative == "less") {
+      mean(vals_h0 <= obs, na.rm = TRUE)
+    } else {
+      p_hi <- mean(vals_h0 >= obs, na.rm = TRUE)
+      p_lo <- mean(vals_h0 <= obs, na.rm = TRUE)
+      min(1, 2 * min(p_hi, p_lo))
+    }
+
+    out$is_diff_boot <- isTRUE(out$pval_boot < alpha)
+  }
+
+  pval <- if (!is.null(out$pval_boot)) out$pval_boot else NA_real_
+  crit <- if (!is.null(out$crit_val_boot)) as.numeric(out$crit_val_boot) else NA_real_
+
+  return(data.frame(
+    test          = if (is.character(fun)) fun else "custom",
+    statistic     = round(obs,  6),
+    crit_val_boot = round(crit, 6),
+    pval_boot     = round(pval, 6),
+    is_diff_boot  = if (!is.null(out$is_diff_boot)) out$is_diff_boot else NA,
+    sig           = add_stars(pval),
+    n_valid_h0    = n_valid_h0,
+    stringsAsFactors = FALSE
+  ))
+}
+
+
+# INTERNAL: element-wise Fisher Z bootstrap ------------------------------------
+# Called automatically when fun = "fisher_z"
+# Returns per-edge p-values instead of a single aggregate statistic
+
+.boot_inference_fisher_z <- function(emp_pcor, theo_pcor,
+                                     boot_h0_pcor,
+                                     n, alpha, n_valid_h0) {
+  p <- ncol(emp_pcor)
+
+  # convert to correlation matrices (Fisher Z operates on correlations)
+  # cov2cor is a no-op here when diagonal = 1, kept for clarity
+  x_cs <- cov2cor(theo_pcor)
+  y_cs <- cov2cor(emp_pcor)
+
+  # one-sample SE: SE = 1 / sqrt(n - p - 1)
+  se_diff <- sqrt(1 / (n - p - 1))
+
+  # observed element-wise differences in Fisher Z space (upper triangle only)
+  obs_vec <- BGGM:::fisher_z(x_cs[upper.tri(x_cs)]) -
+             BGGM:::fisher_z(y_cs[upper.tri(y_cs)])
+
+  z_score     <- abs(obs_vec / se_diff)
+  pvalues     <- (1 - pnorm(z_score)) * 2          # two-sided per edge
+  pvalues_adj <- p.adjust(pvalues, method = "holm") # Holm correction across edges
+
+  # fill significance and value matrices (upper triangle -> symmetrize)
+  mat_sig <- matrix(0, p, p)
+  mat_val <- matrix(0, p, p)
+  mat_sig[upper.tri(mat_sig)] <- ifelse(pvalues_adj < alpha, 1, 0)
+  mat_val[upper.tri(mat_val)] <- obs_vec
+  mat_val    <- mat_val + t(mat_val)
+  diff_logic <- mat_sig + t(mat_sig)
+  mat_val[diff_logic != 1] <- 0          # zero out non-significant differences
+
+  out <- list(
+    "diff_logic"   = diff_logic,         # binary significance matrix (Holm-corrected)
+    "diff_value"   = mat_val,            # magnitude of differences
+    "statistic"    = z_score,            # z-scores per edge
+    "pvalues"      = pvalues,            # raw per-edge p-values
+    "pvalues_adj"  = pvalues_adj,        # Holm-corrected per-edge p-values
+    "is_different" = sum(diff_logic) > 0,
+    # H0 p-value placeholders
+    "pvals_boot"   = NA,
+    "signif_boot"  = NA,
+    "is_diff_boot" = NA,
+    "n_valid_h0"   = n_valid_h0
+  )
+
+
+  ## H0 bootstrap -> per-edge p-values (Holm-corrected) ----
+
+  pvals_adj_boot <- NULL   # filled below if bootstrap ran
+
+  if (length(boot_h0_pcor) > 0) {
+    boot_h0_diffs <- sapply(boot_h0_pcor, function(boot_mat) {
+      boot_cs <- cov2cor(boot_mat)
+      BGGM:::fisher_z(x_cs[upper.tri(x_cs)]) -
+        BGGM:::fisher_z(boot_cs[upper.tri(boot_cs)])
+    })
+
+    # per-edge p-value: proportion of H0 bootstrap differences at least as extreme
+    pvals          <- sapply(seq_len(nrow(boot_h0_diffs)), function(i)
+      mean(abs(boot_h0_diffs[i, ]) >= abs(obs_vec[i]), na.rm = TRUE))
+    pvals_adj_boot <- p.adjust(pvals, method = "holm")
+
+    pval_mat    <- matrix(0, p, p)
+    signif_boot <- matrix(0, p, p)
+    pval_mat[upper.tri(pval_mat)]       <- pvals_adj_boot
+    signif_boot[upper.tri(signif_boot)] <- as.integer(pvals_adj_boot < alpha)
+
+    out$pvals_boot   <- pval_mat    + t(pval_mat)
+    out$signif_boot  <- signif_boot + t(signif_boot)
+    diag(out$signif_boot) <- 0
+    out$is_diff_boot <- any(out$signif_boot == 1L)
+  }
+
+
+  ## Edge table ----------------------------------------------------------------
+  # One row per edge (upper triangle); sorted by analytical p_adj ascending
+  # Stars based on Holm-corrected analytical p-values
+
+  node_names <- if (!is.null(colnames(emp_pcor))) colnames(emp_pcor) else seq_len(p)
+  idx        <- which(upper.tri(matrix(0, p, p)), arr.ind = TRUE)
+
+  edge_tab <- data.frame(
+    node1     = node_names[idx[, 1]],
+    node2     = node_names[idx[, 2]],
+    pcor_emp  = round(y_cs[upper.tri(y_cs)],  4),
+    pcor_theo = round(x_cs[upper.tri(x_cs)],  4),
+    diff      = round(y_cs[upper.tri(y_cs)] - x_cs[upper.tri(x_cs)], 4),
+    z         = round(z_score,      3),
+    p_adj     = round(pvalues_adj,  4),
+    sig       = add_stars(pvalues_adj),
+    stringsAsFactors = FALSE
+  )
+
+  # add bootstrap p-values if available
+  if (!is.null(pvals_adj_boot)) {
+    edge_tab$p_boot_adj <- round(pvals_adj_boot, 4)
+    edge_tab$sig_boot   <- add_stars(pvals_adj_boot)
+  }
+
+  edge_tab         <- edge_tab[order(edge_tab$p_adj), ]
+  rownames(edge_tab) <- NULL
+
+  out$edge_table <- edge_tab
+
+  return(out)
+}
+
+
+
+# INTERNAL: multi-index SEM bootstrap (sem_cna) --------------------------------
+# Called when fun = "sem_cna"
+# Returns one row per fit index
+
+# Direction for bootstrap comparison (higher = worse fit -> "greater" to reject)
+.SEM_ALTERNATIVES <- c(
+  chisq   = "greater",
+  nfi     = "less",      # higher = better fit
+  tli     = "less",
+  rfi     = "less",
+  ifi     = "less",
+  rni     = "less",
+  cfi     = "less",
+  rmsea   = "greater",   # lower = better
+  rmr     = "greater",
+  srmr    = "greater",
+  aic.ll  = "greater",   # lower = better (all AIC/BIC variants)
+  aic.ll2 = "greater",
+  aic.x   = "greater",
+  aic.x2  = "greater",
+  bic     = "greater",
+  bic2    = "greater"
+)
+
+# Not bootstrapped -- reported as observed value only
+.SEM_REPORT_ONLY <- c("df", "pvalue", "rmsea.ci.lower", "rmsea.ci.upper",
+                       "rmsea.pvalue", "logl")
+
+# All indices, in display order
+.SEM_ALL_INDICES <- c(
+  "chisq", "df", "pvalue",
+  "nfi", "tli", "rfi", "ifi", "rni", "cfi",
+  "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue",
+  "rmr", "srmr",
+  "logl",
+  "aic.ll", "aic.ll2", "aic.x", "aic.x2",
+  "bic", "bic2"
+)
+
+# Default subset for quick display
+.SEM_DEFAULT_INDICES <- c("chisq", "cfi", "tli", "nfi", "rmsea", "srmr")
+
+.boot_inference_sem <- function(obs_measures, boot_h0_measures,
+                                alpha, n_valid_h0) {
+  if (is.null(obs_measures)) {
+    warning("sem_cna: stat_fun failed on observed data; no result returned.")
+    return(data.frame())
+  }
+
+  keep <- intersect(.SEM_ALL_INDICES, names(obs_measures))
+
+  rows <- lapply(keep, function(idx) {
+    obs_val    <- as.numeric(obs_measures[[idx]])
+    report_only <- idx %in% .SEM_REPORT_ONLY
+
+    if (report_only) {
+      return(data.frame(
+        test          = idx,
+        statistic     = round(obs_val, 6),
+        crit_val_boot = NA_real_,
+        pval_boot     = NA_real_,
+        is_diff_boot  = NA,
+        sig           = "",
+        n_valid_h0    = NA_integer_,
+        stringsAsFactors = FALSE,
+        row.names     = NULL
+      ))
+    }
+
+    boot_vals <- vapply(boot_h0_measures, function(m) {
+      v <- m[[idx]]
+      if (is.null(v) || length(v) == 0 || !is.finite(v)) NA_real_ else as.numeric(v)
+    }, numeric(1))
+    boot_vals <- boot_vals[!is.na(boot_vals)]
+
+    alt  <- unname(.SEM_ALTERNATIVES[idx])
+    if (is.na(alt)) alt <- "greater"
+
+    crit <- if (length(boot_vals) > 0) {
+      if (alt == "greater") quantile(boot_vals, 1 - alpha, names = FALSE)
+      else                  quantile(boot_vals, alpha,     names = FALSE)
+    } else NA_real_
+
+    pval <- if (length(boot_vals) > 0) {
+      if (alt == "greater") mean(boot_vals >= obs_val, na.rm = TRUE)
+      else                  mean(boot_vals <= obs_val, na.rm = TRUE)
+    } else NA_real_
+
+    data.frame(
+      test          = idx,
+      statistic     = round(obs_val,         6),
+      crit_val_boot = round(as.numeric(crit), 6),
+      pval_boot     = round(pval,             6),
+      is_diff_boot  = if (!is.na(pval)) pval < alpha else NA,
+      sig           = add_stars(pval),
+      n_valid_h0    = n_valid_h0,
+      stringsAsFactors = FALSE,
+      row.names     = NULL
+    )
+  })
+
+  do.call(rbind, rows)
+}
+
+
+############################ THE END ##########################################
+
+

@@ -1,0 +1,49 @@
+# Method
+
+```{r load-results}
+load("../results/conditions_result.RData")
+```
+
+We conducted a simulation study in 
+<!-- `r papaja::cite_r()`  -->
+R [Version 4.5.2\; @R-base] to investigate the performance of the hypothesis tests and indices under different conditions of network structure, density, and estimation methods.
+All code and data are available in the Supplementary Material on [OSF.io](https://osf.io/uymf7/overview?view_only=e857249268d9465996d04e28d39c9e14).
+
+## Population network construction
+
+We generated one population network for each $p \in$ {6, 12, 18} nodes with a fixed density of 0.25 (25% of all possible edges present) to serve as data-generating structures.
+Edge weights were sampled from the uniform distribution with values between 0.10-0.25, then randomly placed in a $p$-dimensional matrix.
+These characteristics were chosen such that resulting structures resemble real psychological networks [e.g., @wysocki2021], while ensuring positive definiteness of $\symbf{\Sigma}_\text{emp}$ in all conditions.
+Dissimilarity was introduced in two ways: *Rewiring* [@watts1998] -- reconnecting one endpoint of an existing edge to another randomly chosen node -- was applied such that each edge was rewired with probability $p(r) \in$ {0, 0.25, 0.50}, while keeping density constant.
+*Density* was varied by removing or adding randomly sampled edges from/to the base network.
+This percentage was $p(d) = \pm 25\%$ and $\pm 50\%$ removed or added edges for $p = 6$, and was proportionally lowered for $p = 12$ (to $\pm 19\%$ and $\pm 38\%$) and $p = 18$ (to $\pm 13\%$ and $\pm 26\%$ edges) to ensure positive definiteness of $\symbf{\Sigma}_\text{emp}$.
+Additional information on network structures is provided in the Supplementary Material.
+
+<!-- Martin: Würde hier die jeweiligen Gründe benennen, damit nachvollziehbar bleibt, was die Konditionen bewirken sollen. Also z.B. "To investigate the aforementioned effect of the number of variables on fit measures, we generated one population [...]". Hauptsächlich soll das so die Methode und die Erwartungen im Abschnitt vorher ein bisschen besser zusammenbinden -->
+
+## Simulation Design and Procedure
+
+Based on the population networks, in each condition, we simulated a standardized multivariate normal dataset ($\mathbf{X} \sim \mathcal{N}(\mathbf{0}, \symbf{\Sigma}_\text{emp})$, where $\symbf{\Sigma}_\text{emp}$ is the correlation matrix corresponding to $\symbf\Omega_\text{emp}$), with $N \in$ {100, 250, 500, 1000, 2500, 5000} observations, using the `mvrnorm` function from the `MASS` package [@ripley2025].
+Depending on the condition, one of the generated base networks was chosen as a data-generating structure: 
+In conditions where the $H_0$ of network equality was true (correct specification), the theoretical network $\symbf\Omega_\text{theo}$ matched the $\symbf\Omega_\text{emp}$ used to generate the empirical data.
+When $H_0$ was false (misspecification), the data-generating $\symbf\Omega_\text{emp}$ differed from $\symbf\Omega_\text{theo}$ with respect to structure or density.
+A GGM $\symbf{\hat\Omega}_\text{emp}$ was obtained from each dataset by either calculating the raw partial correlation matrix or using glasso regularization with EBIC, ggmModSelect stepwise model search [both using the `qgraph` package, version `r packageVersion("qgraph")`\; @epskamp2012], nonconvex atan regularization [@wang2016], or nodewise regression with BIC stepwise search [both using the `mantar` package, version `r packageVersion("mantar")`\; @nehler2026].
+Confirmatory test statistics and indices were then computed.
+Mantel's and Fisher's tests were computed using $\symbf{\hat{\Omega}}_\text{emp}$ as input, while all other methods used $\symbf{\hat{\Sigma}}_\text{emp}$, except the Cai-Ma test, which requires raw data. 
+
+Bootstrap-calibrated $p$-values were obtained via a parametric bootstrap under $H_0$ by simulating 1000 bootstrap samples with `mvrnorm` from $\symbf\Sigma_\text{theo}$ in each replication, rerunning the full network-estimation pipeline, and comparing the observed test statistics against their bootstrapped null distribution.
+This resulted in `r dim(conditions)[1]` conditions, with 500 replications per condition.
+
+<!-- Martin: I think the bootstrap and its reasoning should be introduced in the expectations section. These should include:
+ 1. violation of distributional assumptions (TK... when estimation is performed?)
+ 2. expected volatility of fit-measure performance and preference for adaptive cut-off criteria in modern SEM
+-->
+
+## Performance metrics
+
+For performance under correct specification, we evaluate methods with respect to their $\alpha$ error rate, and for performance under misspecification, with respect to their statistical power.
+For hypothesis tests, we used $\alpha = .05$ as the significance level.
+Based on analytical $p$-values and cutoff values for SEM indices recommended as rules-of-thumb to obtain good fit [RMSEA, SRMR\ \>\ \.05\; CFI, TLI\ \<\ \.97\; NFI\ \<\ \.95\; @schermelleh-engel2003], we computed rejection rates across replications in each condition.
+Rejection rates based on bootstrapped $p$-values were computed for all methods to account for potential violations of distributional assumptions introduced by network estimation.
+For the Mantel method, only bootstrapped $p$-values were used, as the analytical null distribution tests $H_0: r_g = 0$, whereas the modified method requires testing $H_0: r_g = 1$.
+

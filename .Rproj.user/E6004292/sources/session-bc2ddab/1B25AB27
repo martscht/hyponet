@@ -1,0 +1,26 @@
+{
+    "id": "1B25AB27",
+    "path": "~/projects/hyponet/R/exchangeableSampling.R",
+    "project_path": "R/exchangeableSampling.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1779351804236.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "63,0",
+        "scrollLine": "31"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1779355549,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1779355549598,
+    "read_only": false,
+    "read_only_alternatives": []
+}

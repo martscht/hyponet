@@ -1,0 +1,292 @@
+\documentclass[man, hidelinks]{apa7}
+
+\usepackage[american]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{csquotes}
+\usepackage{bm}
+
+\usepackage[style=apa, backend=biber]{biblatex}
+\addbibresource{refs.bib}
+
+\usepackage{tikz}
+\usepackage{pgflibraryshapes}
+\usetikzlibrary{arrows, positioning, fit, backgrounds, decorations}
+
+\newcommand{\alert}[1]{\textcolor{red}{\textbf{#1}}}
+
+\title{Testing Local Edge-Set Hypotheses in Cross-Sectional Psychological Networks}
+\shorttitle{Local Edge-Set Tests}
+
+\authorsnames{Martin~Schultze, Tatiana~Kvetnaya}
+\authorsaffiliations{{Department of Psychology, Goethe University Frankfurt, Germany}}
+
+\abstract{\alert{coming soon}}
+
+\begin{document}
+\tikzset{knot/.style={circle,draw=black!80,semithick,minimum width=1cm,minimum height=.5cm, inner sep= 4pt,text centered,font=\normalsize},
+  knot non/.style={circle,draw=black!20,semithick,minimum width=1cm,minimum height=.5cm, inner sep= 4pt,text centered,font=\normalsize, text=black!20},
+  undir/.style={-,semithick},
+  undir non/.style={-,semithick, draw=black!20},
+  on/.style={->,>=stealth',semithick},
+  from/.style={<-,>=stealth',semithick},
+  boxing/.style={rectangle, rounded corners, draw=black!80, dashed, inner sep=5}
+}
+
+\maketitle
+
+<<include = FALSE>>=
+knitr::opts_chunk$set(
+  echo = FALSE,
+  cache = TRUE,
+  cache.path = "cache/",
+  fig.path = "figures/",
+  autodep = TRUE
+)
+
+source("analysis/startup.R")
+@
+
+\section{Outline}
+
+\begin{itemize}
+  \item Intro
+  \begin{itemize}
+    \item Relevance of testing in GGM
+    \item Small theories / local hypotheses vs. assumption of completeness of network
+    \item Necessity of testing local hypotheses embedded in larger networks \parencite[target system]{haslbeck2022}
+  \end{itemize}
+  \item Background
+  \begin{itemize}
+    \item Networks as $G = (\mathcal{V}, \mathcal{E})$ with $\mathcal{N}_i \subseteq \mathcal{E}$ as connected neighborhood of $i$
+    \item Mostly partial correlations as $\bm{\Omega} = \bm{\Sigma}^{-1}$ and $\bm{\mathrm{P}} = \bm{I} - \bm{D} \bm{\Omega} \bm{D}$ with $\bm{D}$ a diagonal matrix with $\operatorname{diag}(\bm{\Omega})^{-\frac{1}{2}}$
+    \item Exploratory Analyses for edge-set detection (glasso, ggmModSelect, etc)
+    \item Developed alongside: bootstraps for single edges \parencite{epskamp2018}; in addition to traditional tests
+    \item Tests for centralities \parencite{bringmann2019,spiller2020} - don't
+    \item Wide-spread tests for group comparisons \parencite[NCT]{vanborkulo2023}
+    \item CNA-approaches to testing full edge-set \parencite{du2025, kvetnaya2026}
+    \item Recent development by \textcite{lin2025} to allow for efficient and local testing
+  \end{itemize}
+  \item Theory
+  \begin{itemize}
+    \item Weak edge-set hypotheses propose $G_0$ with $\mathcal{E} \subseteq \mathcal{E}_0$
+    \item Four types of hypotheses (add a figure)
+    \begin{enumerate}
+      \item Target system in a fully specified model (test of local fit)
+      \item Target system in a saturated model (system with covariates)
+      \item Embedding in a fully specified model
+      \item Embedding without constraints on covariate correlations
+    \end{enumerate}
+    \item Second study: true sparsity assumption may be unrealistic in psychological networks -> either via approximation checks ($F_{\Sigma}$) or via simplified empirical structures (ggmModSelect)
+  \end{itemize}
+  \item Test-statistics
+  \begin{itemize}
+    \item From fit investigations \parencite{du2025, kvetnaya2026}, some SEM indices seem sensible
+    \begin{itemize}
+      \item Localized SRMR (fuzzy: limit for inclusion)
+      \item $\chi^2$ / LRT in line with blockwise fit proposed by \parencite{norget2022} -> problems of $df$
+      \item Blockwise RSMEA with same $df$ problems
+    \end{itemize}
+    \item Proposed by \textcite{lin2025}
+    \begin{itemize}
+      \item $F_{\Sigma}$ and $F_{\max}$
+      \item $PRC_{\Sigma}$ and $PRC_{\max}$
+    \end{itemize}
+    \item Information Criteria
+    \begin{itemize}
+      \item $\ell(\hat{\theta}) = -\frac{n}{2} \left[p\log(2\pi) + \log|\widehat{\Sigma}| + \operatorname{tr}\left(S\hat{\Sigma}^{-1}\right) \right]$
+      \item $AIC = \ell + 2k$
+      \item $BIC = \ell + \log(n)k$
+    \end{itemize}
+  \end{itemize}
+  \item Testing approaches
+  \begin{itemize}
+    \item Parametric bootstrap seems to work to determine non-arbitrary cut-offs for fits \parencite{kvetnaya2026}
+    \item \textcite{lin2025} propose exchangeable resampling
+    \item Simulation shows both to perform similarly for full network hypotheses (\alert{Run full network simulation and add in supplement})
+  \end{itemize}
+  \item Goals
+  \begin{itemize}
+    \item Determine ability to test four types of hypotheses
+    \item Compare ES to PB in performance
+    \begin{itemize}
+      \item Assumption: similar performance under optimal conditions (normality, large $N$)
+      \item Assumption: better performance of ES under small $N$ and large surrounding
+    \end{itemize}
+    \item Derive recommendations regarding test statistics
+  \end{itemize}
+  \item Simulation study
+  \begin{itemize}
+    \item Four types of hypotheses
+    \item Target system fixed at $p = 5$
+    \item Target system misspecification (none, under, over)
+    \item Non-target system misspecification (non, under) (over unnecessary because tested via hypo types 2 and 4)
+    \item Testing type (ES, PB)
+    \item Network size $p \in \{10, 20\}$; non-target network fixed
+    \item Sample size $N \in \{25, 50, 100, 200, 400, 800\}$
+  \end{itemize}
+  \item Fuzziness simulation as a second simulation step
+  \begin{itemize}
+    \item
+  \end{itemize}
+\end{itemize}
+
+\begin{figure}
+  \caption{Assumed DAG (left) and implied PMRF (right) for the target system}
+  \label{fig:DAG}
+
+  \begin{tikzpicture}
+    \node[knot] (x1) at (0, 1.5) {$X_1$};
+    \node[knot] (x2) at (0, -1.5) {$X_2$};
+    \node[knot] (x3) at (1.5, 0) {$X_3$}
+      edge[from] (x1)
+      edge[from] (x2);
+    \node[knot] (x4) at (3, 1.5) {$X_4$}
+      edge[from] (x3);
+    \node[knot] (x5) at (3, -1.5) {$X_5$}
+      edge[from] (x3);
+
+    \node[knot] (x1b) at (6, 1.5) {$X_1$};
+    \node[knot] (x2b) at (6, -1.5) {$X_2$}
+      edge[undir] (x1b);
+    \node[knot] (x3b) at (7.5, 0) {$X_3$}
+      edge[undir] (x1b)
+      edge[undir] (x2b);
+    \node[knot] (x4b) at (9, 1.5) {$X_4$}
+      edge[undir] (x3b);
+    \node[knot] (x5b) at (9, -1.5) {$X_5$}
+      edge[undir] (x3b);
+    \draw[dashed, semithick] (4.5, -2) to (4.5, 2);
+  \end{tikzpicture}
+\end{figure}
+
+
+\begin{figure}
+  \caption{A example network with 10 nodes. Panel \textbf{A} shows the full network with the target system including nodes $X_1$ through $X_5$. Panel \textbf{B} highlights the nodes and edges referred to in target system hypotheses. Panel \textbf{C} highlights the edges referred to in an embedding hypothesis by the example of one of the target system nodes ($X_5$).}
+  \label{fig:hypotheses}
+    \begin{tikzpicture}
+
+    % Panel A
+      \begin{scope}[shift={(4.75,0)}]
+        \node[knot] (x1) at (0, 1.5) {$X_1$};
+        \node[knot] (x2) at (0, -1.5) {$X_2$}
+          edge[undir] (x1);
+        \node[knot] (x3) at (1.5, 0) {$X_3$}
+          edge[undir] (x1)
+          edge[undir] (x2);
+        \node[knot] (x4) at (3, 1.5) {$X_4$}
+          edge[undir] (x3);
+        \node[knot] (x5) at (3, -1.5) {$X_5$}
+          edge[undir] (x3);
+
+        \node[knot] (x6) at (-2, 0) {$X_6$}
+          edge[undir] (x1)
+          edge[undir] (x2);
+        \node[knot] (x7) at (5, 3) {$X_7$}
+          edge[undir] (x4);
+        \node[knot] (x8) at (5, 0) {$X_8$}
+          edge[undir] (x4)
+          edge[undir] (x5)
+          edge[undir] (x7);
+        \node[knot] (x9) at (3, -4) {$X_9$}
+          edge[undir] (x3)
+          edge[undir] (x5)
+          edge[undir] (x8);
+        \node[knot] (x10) at (0, -4) {$X_{10}$}
+          edge[undir] (x2)
+          edge[undir] (x5)
+          edge[undir] (x6)
+          edge[undir] (x9);
+
+        \begin{scope}[on background layer]
+          \node[boxing, inner sep=.6em, fit=(x1.north west) (x5.south east), label={Target system}] {};
+          \node[rectangle, inner sep=1.25em, draw=black!80, label={[xshift=2em, yshift=-2em]135:\LARGE{\textbf{A}}}, fit=(x7.north east) (x10.south) (x6.west)] {};
+        \end{scope}
+    \end{scope}
+
+    % Panel B
+    \begin{scope}[shift={(0,-9.5)}]
+      \node[knot] (x1) at (0, 1.5) {$X_1$};
+      \node[knot] (x2) at (0, -1.5) {$X_2$}
+        edge[undir] (x1);
+      \node[knot] (x3) at (1.5, 0) {$X_3$}
+        edge[undir] (x1)
+        edge[undir] (x2);
+      \node[knot] (x4) at (3, 1.5) {$X_4$}
+        edge[undir] (x3);
+      \node[knot] (x5) at (3, -1.5) {$X_5$}
+        edge[undir] (x3);
+
+      \node[knot non] (x6) at (-2, 0) {$X_6$}
+        edge[undir non] (x1)
+        edge[undir non] (x2);
+      \node[knot non] (x7) at (5, 3) {$X_7$}
+        edge[undir non] (x4);
+      \node[knot non] (x8) at (5, 0) {$X_8$}
+        edge[undir non] (x4)
+        edge[undir non] (x5)
+        edge[undir non] (x7);
+      \node[knot non] (x9) at (3, -4) {$X_9$}
+        edge[undir non] (x3)
+        edge[undir non] (x5)
+        edge[undir non] (x8);
+      \node[knot non] (x10) at (0, -4) {$X_{10}$}
+        edge[undir non] (x2)
+        edge[undir non] (x5)
+        edge[undir non] (x6)
+        edge[undir non] (x9);
+
+      \begin{scope}[on background layer]
+        \node[boxing, inner sep=.6em, fit=(x1.north west) (x5.south east), label={Target system}] {};
+        \node[rectangle, inner sep=1.25em, draw=black!80, label={[xshift=2em, yshift=-2em]135:\LARGE{\textbf{B}}}, fit=(x7.north east) (x10.south) (x6.west)] {};
+
+      \end{scope}
+    \end{scope}
+
+    % Panel C
+    \begin{scope}[shift={(9.5,-9.5)}]
+      \node[knot non] (x1) at (0, 1.5) {$X_1$};
+      \node[knot non] (x2) at (0, -1.5) {$X_2$}
+        edge[undir non] (x1);
+      \node[knot non] (x3) at (1.5, 0) {$X_3$}
+        edge[undir non] (x1)
+        edge[undir non] (x2);
+      \node[knot non] (x4) at (3, 1.5) {$X_4$}
+        edge[undir non] (x3);
+      \node[knot] (x5) at (3, -1.5) {$X_5$}
+        edge[undir] (x3);
+
+      \node[knot non] (x6) at (-2, 0) {$X_6$}
+        edge[undir non] (x1)
+        edge[undir non] (x2);
+      \node[knot non] (x7) at (5, 3) {$X_7$}
+        edge[undir non] (x4);
+      \node[knot non] (x8) at (5, 0) {$X_8$}
+        edge[undir non] (x4)
+        edge[undir] (x5)
+        edge[undir non] (x7);
+      \node[knot non] (x9) at (3, -4) {$X_9$}
+        edge[undir non] (x3)
+        edge[undir] (x5)
+        edge[undir non] (x8);
+      \node[knot non] (x10) at (0, -4) {$X_{10}$}
+        edge[undir non] (x2)
+        edge[undir] (x5)
+        edge[undir non] (x6)
+        edge[undir non] (x9);
+
+      \begin{scope}[on background layer]
+        \node[boxing, inner sep=.6em, fit=(x1.north west) (x5.south east), label={Target system}] {};
+        \node[rectangle, inner sep=1.25em, draw=black!80, label={[xshift=2em, yshift=-2em]135:\LARGE{\textbf{C}}}, fit=(x7.north east) (x10.south) (x6.west)] {};
+
+      \end{scope}
+    \end{scope}
+
+    \end{tikzpicture}
+
+\end{figure}
+
+\printbibliography
+
+\end{document}
