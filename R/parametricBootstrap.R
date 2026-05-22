@@ -61,7 +61,7 @@ parametricBootstrap <- function(data, adjacency, m = 500, ncores = 1) {
   })
 
   # Generate output
-  out <- list(original = data, copies = copies)
+  out <- list(original = data, copies = copies, type = 'parametricBootstrap')
   class(out) <- 'hyponetData'
 
   return(out)

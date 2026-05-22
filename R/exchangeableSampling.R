@@ -16,6 +16,11 @@
 #' @return A list containing the (standardized) original dataset, the hub data, and a list of
 #' all generated copies.
 #'
+#' @references Lin, X., Li, W., Tian, F., & Huang, D. (2025). Goodness-of-fit
+#' tests for high-dimensional Gaussian graphical models via exchangeable
+#' sampling. Journal of the Royal Statistical Society Series B:
+#' Statistical Methodology, qkaf032. https://doi.org/10.1093/jrsssb/qkaf032
+#'
 #' @export
 
 exchangeableSampling <- function(data, adjacency, target = 1:ncol(data),
@@ -63,7 +68,7 @@ exchangeableSampling <- function(data, adjacency, target = 1:ncol(data),
   })
 
   # Generate output
-  out <- list(original = data, hub = Xhub, copies = Xtilde)
+  out <- list(original = data, hub = Xhub, copies = Xtilde, target = target, type = 'exchangeableSampling')
   class(out) <- 'hyponetData'
 
   return(out)
