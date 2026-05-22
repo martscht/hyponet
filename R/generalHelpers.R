@@ -103,7 +103,7 @@ determineSingleFits <- function(est, tolerance = 1e-6, fits = 'all') {
   }
 
   # check whether they should all be computed
-  if (fits == 'all') {
+  if (identical(fits, 'all')) {
     fits <- available
   }
 

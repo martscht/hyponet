@@ -38,7 +38,7 @@ fit_rmsea <- function(est, tolerance = 1e-6) {
 
   chi <- fit_chisq(est, tolerance)
 
-  df <- sum(adjacency[lower.tri(adjacency)] == 0)
+  df <- sum(est$adjacency[lower.tri(est$adjacency)] == 0)
 
   rmsea <- sqrt(max(((chi/df) - 1) / (est$n - 1) , 0))
 
