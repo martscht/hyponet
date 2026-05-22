@@ -1,7 +1,7 @@
 #### Collection of general helper functions ----
 
 #' Convert correlation matrix to partial correlations
-#'
+#' @noRd
 #' @keywords internal
 c2pc <- function(R) {
 
@@ -13,7 +13,7 @@ c2pc <- function(R) {
 }
 
 #' Determine implied correlation matrix via glasso
-#'
+#' @noRd
 #' @keywords internal
 impliedCor <- function(empirical, adjacency, n, ...) {
 
@@ -30,7 +30,7 @@ impliedCor <- function(empirical, adjacency, n, ...) {
 }
 
 #' Estimate implied and empirical networks
-#'
+#' @noRd
 #' @keywords internal
 fullEstimation <- function(data, adjacency, target = 1:ncol(data)) {
 
@@ -69,7 +69,7 @@ fullEstimation <- function(data, adjacency, target = 1:ncol(data)) {
 
 
 #' Check for all available measures
-#'
+#' @noRd
 #' @keywords internal
 implementedFits <- function(prefix = 'fit_') {
 
@@ -84,7 +84,7 @@ implementedFits <- function(prefix = 'fit_') {
 }
 
 #' Determine (any collection of) fit measures for a single application
-#'
+#' @noRd
 #' @keywords internal
 determineSingleFits <- function(est, tolerance = 1e-6, fits = 'all') {
 
@@ -135,7 +135,7 @@ determineSingleFits <- function(est, tolerance = 1e-6, fits = 'all') {
 }
 
 #' Determine (any collection of) fit measures for many applications
-#'
+#' @noRd
 #' @keywords internal
 determineFits <- function(data, adjacency, target = NULL, fits = 'all', tolerance = 1e-6, ...) {
 

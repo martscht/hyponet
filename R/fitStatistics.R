@@ -1,7 +1,7 @@
 #### Collection of test statistics ----
 
 #' SRMR: Standardized Root Mean Square Residual
-#'
+#' @noRd
 #' @keywords internal
 fit_srmr <- function(est, tolerance = 1e-6) {
 
@@ -22,7 +22,7 @@ fit_srmr <- function(est, tolerance = 1e-6) {
 
 
 #' (Blockwise) Chi-Square
-#'
+#' @noRd
 #' @keywords internal
 fit_chisq <- function(est, tolerance = 1e-6) {
 
@@ -53,7 +53,7 @@ fit_chisq <- function(est, tolerance = 1e-6) {
 }
 
 #' (Blockwise) RMSEA
-#'
+#' @noRd
 #' @keywords internal
 fit_rmsea <- function(est, tolerance = 1e-6) {
 
@@ -66,9 +66,9 @@ fit_rmsea <- function(est, tolerance = 1e-6) {
   return(rmsea)
 }
 
-#' (Blockwise) AIC
-#'
-#' @keywords internal
+# #' (Blockwise) AIC
+# #'
+# #' @keywords internal
 # fit_aic <- function(est, tolerance = 1e-6) {
 #
 #   loglik <- -est$n / 2 * (log(det(est$imp)) + sum(diag(est$emp %*% solve(est$imp))))
@@ -79,10 +79,10 @@ fit_rmsea <- function(est, tolerance = 1e-6) {
 #
 #   return(aic)
 # }
-
-#' (Blockwise) BIC
-#'
-#' @keywords internal
+#
+# #' (Blockwise) BIC
+# #'
+# #' @keywords internal
 # fit_bic <- function(est, tolerance = 1e-6) {
 #
 #   loglik <- -est$n / 2 * (log(det(est$imp)) + sum(diag(est$emp %*% solve(est$imp))))
@@ -95,7 +95,7 @@ fit_rmsea <- function(est, tolerance = 1e-6) {
 # }
 
 #' F-statistics helper function
-#'
+#' @noRd
 #' @keywords internal
 phiCompute <- function(est, tolerance = 1e-6) {
 
@@ -161,7 +161,7 @@ phiCompute <- function(est, tolerance = 1e-6) {
 }
 
 #' F-sum statistic
-#'
+#' @noRd
 #' @keywords internal
 fit_fsum <- function(est, tolerance = 1e-6) {
 
@@ -173,7 +173,7 @@ fit_fsum <- function(est, tolerance = 1e-6) {
 }
 
 #' F-max statistic
-#'
+#' @noRd
 #' @keywords internal
 fit_fmax <- function(est, tolerance = 1e-6) {
 
@@ -185,7 +185,7 @@ fit_fmax <- function(est, tolerance = 1e-6) {
 }
 
 #' PRC helper function
-#'
+#' @noRd
 #' @keywords internal
 prcCompute <- function(est, tolerance = 1e-6) {
 
@@ -201,7 +201,7 @@ prcCompute <- function(est, tolerance = 1e-6) {
 }
 
 #' PRC sum of squares
-#'
+#' @noRd
 #' @keywords internal
 fit_prcss <- function(est, tolerance = 1e-6) {
 
@@ -218,6 +218,9 @@ fit_prcss <- function(est, tolerance = 1e-6) {
   return(prcss)
 }
 
+#' PRC sum of absolutes
+#' @noRd
+#' @keywords internal
 fit_prcsa <- function(est, tolerance = 1e-6) {
 
   zval <- prcCompute(est = est, tolerance = tolerance)
