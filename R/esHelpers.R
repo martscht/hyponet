@@ -1,10 +1,12 @@
 #### Helper functions for exchangeable sampling ----
 
-# Orthogonal Vector for a matrix (algorithm 1)
+#' Orthogonal Vector for a matrix (algorithm 1)
+#' @noRd
+#' @keywords internal
 orthVec <- function(X) {
 
   # QR decomposition
-  QR <- qr(cbind(X, rnorm(nrow(X))))
+  QR <- qr(cbind(X, stats::rnorm(nrow(X))))
 
   # Generate vector
   vec <- qr.Q(QR)[, ncol(X) + 1]
@@ -14,7 +16,9 @@ orthVec <- function(X) {
   return(vec)
 }
 
-# Generate x tilde for a single variable
+#' Generate x tilde for a single variable
+#' @noRd
+#' @keywords internal
 algo1 <- function(data, i, adjacency) {
 
   # Determine neighbors of i
@@ -27,8 +31,8 @@ algo1 <- function(data, i, adjacency) {
   if (length(N) == 0) {
     Xi <- mean(Xi) + orthVec(matrix(1, nrow = length(Xi))) * sqrt(sum((Xi - mean(Xi))^2))
   } else if (length(Xi) >= 2 + length(N)) {
-    tmp <- lm(Xi ~ data[, N])
-    Xi <- predict(tmp) + sqrt(sum(resid(tmp)^2)) * orthVec(cbind(1, data[, N]))
+    tmp <- stats::lm(Xi ~ data[, N])
+    Xi <- stats::predict(tmp) + sqrt(sum(stats::resid(tmp)^2)) * orthVec(cbind(1, data[, N]))
   }
 
   # Output new variable
@@ -36,7 +40,9 @@ algo1 <- function(data, i, adjacency) {
 
 }
 
-# Generate X tilde for entire data frame
+#' Generate X tilde for entire data frame
+#' @noRd
+#' @keywords internal
 algo2step1 <- function(data, target, adjacency) {
 
   Xtilde <- data

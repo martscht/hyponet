@@ -1,17 +1,25 @@
 Package: hyponet
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Test local hypotheses in psychological networks
 Version: 0.1.0
 Authors@R: c(
     person(
-      "Jane", "Doe",
-      email = "jane@example.com",
+      "Martin", "Schultze",
+      email = "schultze@psych.uni-frankfurt.de",
       role = c("aut", "cre")
     )
   )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
-License: What license is it under?
+Description: This package uses parametric bootstrapping and
+   Lin et al.'s (2025) exchangeable resampling method to test
+   local network hypotheses. Tests are performed using a wide
+   range of fit statistics.
+License: CC BY 4.0
 Encoding: UTF-8
 LazyData: true
 Config/roxygen2/version: 8.0.0
+Imports: 
+    glasso,
+    Matrix,
+    mvtnorm,
+    parallel,
+    pbapply
