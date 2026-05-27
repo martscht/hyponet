@@ -64,11 +64,11 @@ exchangeableSampling <- function(data, adjacency, target = 1:ncol(data),
       tmp <- algo2step1(tmp, rev(target), adjacency)
     }
 
-    tmp
+    return(tmp)
   })
 
   # Generate output
-  out <- list(original = data, hub = Xhub, copies = Xtilde, target = target, type = 'exchangeableSampling')
+  out <- list(original = data, hub = Xhub, copies = Xtilde, target = target, resample = 'exchangeableSampling')
   class(out) <- 'hyponetData'
 
   return(out)

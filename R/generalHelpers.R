@@ -15,7 +15,7 @@ c2pc <- function(R) {
 #' Determine implied correlation matrix via glasso
 #' @noRd
 #' @keywords internal
-impliedCor <- function(empirical, adjacency, n, ...) {
+impliedCor <- function(empirical, adjacency, n) {
 
   # Rephrase constraints
   constr <- which(adjacency == 0, arr.ind = TRUE)
@@ -37,7 +37,7 @@ fullEstimation <- function(data, adjacency, target = 1:ncol(data)) {
   # determine sample size
   n <- nrow(data)
   # determine p
-  p <- length(target)
+  p <- ncol(data)
 
   # get empirical and implied correlation matrices
   emp <- stats::cor(data)
@@ -48,11 +48,11 @@ fullEstimation <- function(data, adjacency, target = 1:ncol(data)) {
   impRho <- c2pc(imp)
 
   # filter down to local version
-  emp <- emp[target, target]
-  imp <- imp[target, target]
-  empRho <- empRho[target, target]
-  impRho <- impRho[target, target]
-  adjacency <- adjacency[target, target]
+  # emp <- emp[target, target]
+  # imp <- imp[target, target]
+  # empRho <- empRho[target, target]
+  # impRho <- impRho[target, target]
+  # adjacency <- adjacency[target, target]
 
   # combine output
   out <- list(n = n, p = p,
@@ -60,7 +60,8 @@ fullEstimation <- function(data, adjacency, target = 1:ncol(data)) {
     empRho = empRho,
     imp = imp,
     impRho = impRho,
-    adjacency = adjacency)
+    adjacency = adjacency,
+    target = target)
 
   class(out) <- 'hyponetEst'
 
@@ -86,7 +87,7 @@ implementedFits <- function(prefix = 'fit_') {
 #' Determine (any collection of) fit measures for a single application
 #' @noRd
 #' @keywords internal
-determineSingleFits <- function(est, tolerance = 1e-6, fits = 'all') {
+determineSingleFits <- function(est, tolerance, fits, hypothesis) {
 
   # check whether est is the right kind of object
   if (!inherits(est, 'hyponetEst')) {
@@ -126,7 +127,7 @@ determineSingleFits <- function(est, tolerance = 1e-6, fits = 'all') {
 
   out <- vapply(fits, function(fit) {
     fun <- get(implemented[[fit]], envir = ns, inherits = FALSE)
-    fun(est = est, tolerance = tolerance)
+    fun(est = est, tolerance = tolerance, hypothesis = hypothesis)
   },
     numeric(1)
   )
@@ -137,7 +138,7 @@ determineSingleFits <- function(est, tolerance = 1e-6, fits = 'all') {
 #' Determine (any collection of) fit measures for many applications
 #' @noRd
 #' @keywords internal
-determineFits <- function(data, adjacency, target = NULL, fits = 'all', tolerance = 1e-6, ...) {
+determineFits <- function(data, adjacency, target = NULL, hypothesis, fits = 'all', tolerance = 1e-6) {
 
   if (inherits(data, 'matrix')) {
     data <- list(data)
@@ -145,8 +146,59 @@ determineFits <- function(data, adjacency, target = NULL, fits = 'all', toleranc
   if (is.null(target)) target <- 1:ncol(data[[1]])
 
   estimated <- lapply(data, fullEstimation, adjacency = adjacency, target = target)
-  fitted <- lapply(estimated, determineSingleFits, tolerance = tolerance, fits = fits)
+  fitted <- lapply(estimated, determineSingleFits, tolerance = tolerance, fits = fits, hypothesis = hypothesis)
   fitted <- do.call(rbind, fitted)
 
   return(fitted)
 }
+
+#' Create a filter matrix for the relevant edges
+#' @noRd
+#' @keywords internal
+fitFilter <- function(est, tolerance = 1e-6,
+  hypothesis = c("local", "embed"),
+  triangle = FALSE) {
+
+  hypothesis <- match.arg(hypothesis)
+
+  p <- est$p
+  target <- est$target
+  adjacency <- est$adjacency
+
+  # tolerance filter for fuzziness
+  filt <- abs(est$empRho - est$impRho) > tolerance
+
+  # only restricted / missing edges can contribute
+  filt <- filt & adjacency == 0
+
+  # remove diagonal
+  diag(filt) <- FALSE
+
+  if (hypothesis == "local") {
+
+    # only pairs inside the target system
+    local <- matrix(FALSE, p, p)
+    local[target, target] <- TRUE
+    diag(local) <- FALSE
+
+    filt <- filt & local
+  }
+
+  if (hypothesis == "embed") {
+
+    # rows of target nodes: target nodes as response variables
+    embed <- matrix(FALSE, p, p)
+    embed[target, ] <- TRUE
+    diag(embed) <- FALSE
+
+    filt <- filt & embed
+  }
+
+  # for symmetric statistics
+  if (triangle) {
+    filt <- filt & lower.tri(filt)
+  }
+
+  return(filt)
+}
+

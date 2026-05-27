@@ -3,28 +3,132 @@
 #' SRMR: Standardized Root Mean Square Residual
 #' @noRd
 #' @keywords internal
-fit_srmr <- function(est, tolerance = 1e-6) {
+fit_srmr <- function(est, tolerance = 1e-6, hypothesis) {
 
-  # get unique entries
-  uni <- lower.tri(est$emp, diag = FALSE)
+  # filter for elements to include
+  filt <- fitFilter(est = est, tolerance = tolerance,
+    hypothesis = hypothesis, triangle = TRUE)
 
-  # determine tolerance filter
-  tolFilter <- abs(est$empRho[uni]-est$impRho[uni]) > tolerance
+  if (!any(filt)) return(NA)
+
+  # number of elements included
+  p <- sum(filt)
 
   # determine sum of squares (for differences outside tolerance)
-  SS <- sum((est$emp[uni][tolFilter] - est$imp[uni][tolFilter])^2)
+  SS <- sum((est$emp[filt] - est$imp[filt])^2)
 
   # calculate SRMR only on off-diagonal elements
-  srmr <- sqrt(SS / (est$p * (est$p - 1)/2))
+  srmr <- sqrt(SS / p)
 
   return(srmr)
+}
+
+#' Determine the information matrix used in computation of modindices
+#' @noRd
+#' @keywords internal
+infoMatrix <- function(imp, params, n) {
+  q <- nrow(params)
+  Info <- matrix(0, q, q)
+
+  mult <- function(a, b) {
+    if (a == b) 0.5 else 1
+  }
+
+  for (u in seq_len(q)) {
+    i <- params[u, 1]
+    j <- params[u, 2]
+
+    for (v in u:q) {
+      k <- params[v, 1]
+      l <- params[v, 2]
+
+      if (i == j && k == l) {
+        Iuv <- n / 2 * imp[i, k]^2
+      } else if (i == j && k != l) {
+        Iuv <- n * imp[i, k] * imp[i, l]
+      } else if (i != j && k == l) {
+        Iuv <- n * imp[i, k] * imp[j, k]
+      } else {
+        Iuv <- n * (
+          imp[i, k] * imp[j, l] +
+            imp[i, l] * imp[j, k]
+        )
+      }
+
+      Info[u, v] <- Iuv
+      Info[v, u] <- Iuv
+    }
+  }
+
+  return(Info)
+}
+
+
+#' Global modification indices
+#' @noRd
+#' @keywords internal
+fit_modindex <- function(est, tolerance = 1e-6, hypothesis) {
+
+  n <- est$n
+  p <- est$p
+  emp <- est$emp
+  imp <- est$imp
+  adjacency <- est$adjacency
+
+  # currently free nuisance parameters:
+  # all diagonal precision entries + all allowed undirected edges
+  diag_params <- cbind(seq_len(p), seq_len(p))
+  edge_params <- which(adjacency == 1 & upper.tri(adjacency), arr.ind = TRUE)
+
+  free_params <- rbind(diag_params, edge_params)
+
+  # candidate constrained edges from shared fit filter
+  filt <- fitFilter(est = est, tolerance = tolerance, hypothesis = hypothesis, triangle = FALSE)
+
+  # MI is undirected: include edge if either direction is selected
+  filt <- filt | t(filt)
+
+  # keep each undirected edge once
+  cand_params <- which(filt & upper.tri(filt), arr.ind = TRUE)
+
+  # abort if nothing is being tested
+  if (nrow(cand_params) == 0) return(NA)
+
+  all_params <- rbind(free_params, cand_params)
+
+  n_free <- nrow(free_params)
+  n_cand <- nrow(cand_params)
+
+  Info <- infoMatrix(imp = imp, params = all_params, n = n)
+
+  # scores for candidate precision entries
+  score_cand <- n * (imp[cand_params] - emp[cand_params])
+
+  idx_free <- seq_len(n_free)
+  idx_cand <- n_free + seq_len(n_cand)
+
+  I_ff <- Info[idx_free, idx_free, drop = FALSE]
+  I_fc <- Info[idx_free, idx_cand, drop = FALSE]
+  I_cf <- Info[idx_cand, idx_free, drop = FALSE]
+  I_cc <- Info[idx_cand, idx_cand, drop = FALSE]
+
+  # efficient information for candidates after adjusting for nuisance parameters
+  I_eff <- I_cc - I_cf %*% solve(I_ff, I_fc)
+
+  MI <- as.numeric(t(score_cand) %*% solve(I_eff, score_cand))
+
+  return(MI)
 }
 
 
 #' (Blockwise) Chi-Square
 #' @noRd
 #' @keywords internal
-fit_chisq <- function(est, tolerance = 1e-6) {
+fit_chisq <- function(est, tolerance = 1e-6, hypothesis) {
+
+  # filter for elements to include
+  # filt <- fitFilter(est = est, tolerance = tolerance,
+  #   hypothesis = hypothesis, triangle = TRUE)
 
   # extract components for easier handling
   n <- est$n
@@ -47,6 +151,13 @@ fit_chisq <- function(est, tolerance = 1e-6) {
   diag(tolRho) <- -1
   tol <- solve(-tolRho) |> stats::cov2cor()
 
+  # if (hypothesis == 'local') {
+  #   tol <- tol[filt]
+  #   emp <- emp[filt]
+  # } else {
+  #   warning('Chi-Square cannot be computed for embedding hypotheses. Values reported relate to the entire network.')
+  # }
+
   chi <- n * (log(det(tol)) - log(det(emp)) + sum(diag(emp %*% solve(tol))) - p)
 
   return(chi)
@@ -55,62 +166,31 @@ fit_chisq <- function(est, tolerance = 1e-6) {
 #' (Blockwise) RMSEA
 #' @noRd
 #' @keywords internal
-fit_rmsea <- function(est, tolerance = 1e-6) {
+fit_rmsea <- function(est, tolerance = 1e-6, hypothesis) {
 
-  chi <- fit_chisq(est, tolerance)
+  chi <- fit_modindex(est, tolerance, hypothesis)
 
-  df <- sum(est$adjacency[lower.tri(est$adjacency)] == 0)
+  # candidate constrained edges from shared fit filter
+  filt <- fitFilter(est = est, tolerance = tolerance, hypothesis = hypothesis, triangle = FALSE)
+  df <- sum(filt)
 
   rmsea <- sqrt(max(((chi/df) - 1) / (est$n - 1) , 0))
 
   return(rmsea)
 }
 
-# #' (Blockwise) AIC
-# #'
-# #' @keywords internal
-# fit_aic <- function(est, tolerance = 1e-6) {
-#
-#   loglik <- -est$n / 2 * (log(det(est$imp)) + sum(diag(est$emp %*% solve(est$imp))))
-#
-#   k <- sum(est$adjacency[lower.tri(est$adjacency)] != 0)
-#
-#   aic <- -2 * loglik + 2 * k
-#
-#   return(aic)
-# }
-#
-# #' (Blockwise) BIC
-# #'
-# #' @keywords internal
-# fit_bic <- function(est, tolerance = 1e-6) {
-#
-#   loglik <- -est$n / 2 * (log(det(est$imp)) + sum(diag(est$emp %*% solve(est$imp))))
-#
-#   k <- sum(est$adjacency[lower.tri(est$adjacency)] != 0)
-#
-#   bic <- -2 * loglik + log(est$n) * k
-#
-#   return(bic)
-# }
-
 #' F-statistics helper function
 #' @noRd
 #' @keywords internal
-phiCompute <- function(est, tolerance = 1e-6) {
+phiCompute <- function(est, tolerance = 1e-6, hypothesis) {
 
   # extract components for easier handling
   n <- est$n
   p <- est$p
   adjacency <- est$adjacency
   emp <- est$emp
-  imp <- est$imp
 
   phi <- matrix(0, p, p)
-
-  # determine inclusion via tolerance
-  include <- abs(est$empRho - est$impRho) > tolerance
-
 
   # loop over nodes
   for (i in seq_len(p)) {
@@ -133,9 +213,6 @@ phiCompute <- function(est, tolerance = 1e-6) {
 
     for (j in candidates) {
 
-      # skip to next iteration if below tolerance
-      if (!include[i, j]) next
-
       # grow model by one candidate
       A1 <- c(Ni, j)
 
@@ -146,6 +223,9 @@ phiCompute <- function(est, tolerance = 1e-6) {
       res1 <- emp[i, i] - empAi %*% solve(empAA, t(empAi))
 
       df2 <- n - length(Ni) - 2
+
+      res0 <- as.numeric(res0)
+      res1 <- as.numeric(res1)
 
       phi[i, j] <- (res0 - res1) / (res1 / df2)
     }
@@ -163,11 +243,15 @@ phiCompute <- function(est, tolerance = 1e-6) {
 #' F-sum statistic
 #' @noRd
 #' @keywords internal
-fit_fsum <- function(est, tolerance = 1e-6) {
+fit_fsum <- function(est, tolerance = 1e-6, hypothesis) {
 
   phi <- phiCompute(est = est, tolerance = tolerance)
 
-  fsum <- sum(phi)
+  # filter for elements to include
+  filt <- fitFilter(est = est, tolerance = tolerance,
+    hypothesis = hypothesis, triangle = FALSE)
+
+  fsum <- sum(phi[filt])
 
   return(fsum)
 }
@@ -175,11 +259,15 @@ fit_fsum <- function(est, tolerance = 1e-6) {
 #' F-max statistic
 #' @noRd
 #' @keywords internal
-fit_fmax <- function(est, tolerance = 1e-6) {
+fit_fmax <- function(est, tolerance = 1e-6, hypothesis) {
 
   phi <- phiCompute(est = est, tolerance = tolerance)
 
-  fmax <- max(phi)
+  # filter for elements to include
+  filt <- fitFilter(est = est, tolerance = tolerance,
+    hypothesis = hypothesis, triangle = FALSE)
+
+  fmax <- max(phi[filt])
 
   return(fmax)
 }
@@ -187,7 +275,7 @@ fit_fmax <- function(est, tolerance = 1e-6) {
 #' PRC helper function
 #' @noRd
 #' @keywords internal
-prcCompute <- function(est, tolerance = 1e-6) {
+prcCompute <- function(est, tolerance = 1e-6, hypothesis) {
 
   n <- est$n
   p <- est$p
@@ -203,15 +291,13 @@ prcCompute <- function(est, tolerance = 1e-6) {
 #' PRC sum of squares
 #' @noRd
 #' @keywords internal
-fit_prcss <- function(est, tolerance = 1e-6) {
+fit_prcss <- function(est, tolerance = 1e-6, hypothesis) {
 
   zval <- prcCompute(est = est, tolerance = tolerance)
 
-  include <- abs(est$empRho - est$impRho) > tolerance
-
-  filt <- lower.tri(zval) &
-    include &
-    est$adjacency == 0 # ensures only discrepancies on restricted edges are used
+  # filter for elements to include
+  filt <- fitFilter(est = est, tolerance = tolerance,
+    hypothesis = hypothesis, triangle = TRUE)
 
   prcss <- sum(zval[filt]^2)
 
@@ -221,15 +307,13 @@ fit_prcss <- function(est, tolerance = 1e-6) {
 #' PRC sum of absolutes
 #' @noRd
 #' @keywords internal
-fit_prcsa <- function(est, tolerance = 1e-6) {
+fit_prcsa <- function(est, tolerance = 1e-6, hypothesis) {
 
   zval <- prcCompute(est = est, tolerance = tolerance)
 
-  include <- abs(est$empRho - est$impRho) > tolerance
-
-  filt <- lower.tri(zval) &
-    include &
-    est$adjacency == 0 # ensures only discrepancies on restricted edges are used
+  # filter for elements to include
+  filt <- fitFilter(est = est, tolerance = tolerance,
+    hypothesis = hypothesis, triangle = TRUE)
 
   prcsa <- sum(abs(zval[filt]))
 

@@ -8,9 +8,10 @@ hypothesisTest(
   data,
   adjacency,
   target = NULL,
+  hypothesis = c("local", "embed"),
   fits = "all",
   tolerance = 1e-06,
-  resampleType = c("exchangeableSampling", "parametricBootstrap"),
+  resample = c("exchangeableSampling", "parametricBootstrap"),
   ...
 )
 }
@@ -25,13 +26,16 @@ the same order as the variables in the supplied data.}
 \item{target}{The column numbers of the variables that constitute the target
 system.}
 
+\item{hypothesis}{The type of hypothesis to be tested. Can be either 'local' (the
+default) or 'embed'. See details.}
+
 \item{fits}{The fit statistics to be computed. Can be either 'all' (the
 default) or a character vector of names. See details.}
 
 \item{tolerance}{The absolute tolerance value for fuzzy hypothesis testing.
 See details.}
 
-\item{resampleType}{The type of resampling to use. Ignored if a
+\item{resample}{The type of resampling to use. Ignored if a
 \code{hypoeNet} object is provided to \code{data}.}
 
 \item{...}{Other arguments to be passed to \code{exchangeablSampling} or
@@ -45,12 +49,19 @@ This function tests the null hypothesis that the proposed adjacency matrix
 holds in the sample data via resampling approaches.
 }
 \details{
-The currently available fit statistics can be listed with
+The function can be used to test two types of hypotheses. Using
+\code{hypothesis = 'local'} results in a test of all edges within the target
+system #' (provided via \code{target}). Using \code{hypothesis = 'embed'}
+results in a test #' of all edges related to nodes in the target system. Thus
+the latter only #' excludes edges from the test which connect non-target
+nodes to each other.
+
+Currently available fit statistics can be listed with
 \code{hyponet:::implementedFits()}. This returns a vector of all fit
 statistics' names and the internal functions by which they are computed. Any
 combination of these fit statistics can used simultaneously.
 
-The \code{toelarance} value refers to the absolute discrepancy between the
+The \code{tolarance} value refers to the absolute discrepancy between the
 model-implied and the empirical network edges. Any differences that fall
 below this threshold are not included in the computation of the fit
 statistics.
