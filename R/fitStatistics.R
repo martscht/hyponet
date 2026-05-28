@@ -18,7 +18,7 @@ fit_srmr_con <- function(est, tolerance = 1e-6, hypothesis) {
   p <- sum(filt)
 
   # determine sum of squares (for differences outside tolerance)
-  SS <- sum((est$emp[filt] - est$imp[filt])^2)
+  SS <- sum((est$empRho[filt] - est$impRho[filt])^2)
 
   # calculate SRMR only on off-diagonal elements
   srmr <- sqrt(SS / p)
@@ -93,10 +93,8 @@ fit_rmsea_con <- function(est, tolerance = 1e-6, hypothesis) {
   chi <- fit_modindex_con(est, tolerance, hypothesis)
 
   # candidate constrained edges from shared fit filter
-  filt <- fitFilter(est = est, tolerance = tolerance,
-    hypothesis = hypothesis, triangle = FALSE, constraint = TRUE)
-
-  if (!any(filt)) return(0)
+  filt <- fitFilter(est = est, tolerance = -Inf,
+    hypothesis = hypothesis, triangle = TRUE, constraint = TRUE)
 
   df <- sum(filt)
 
