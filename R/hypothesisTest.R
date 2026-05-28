@@ -64,6 +64,8 @@ hypothesisTest <- function(data, adjacency,
 
     resample <- match.arg(resample)
 
+    message(paste0('Running ', tolower(gsub("([a-z])([A-Z])", "\\1 \\2", resample)), '...'))
+
     data <- switch(resample,
       exchangeableSampling = exchangeableSampling(
         data = data,
@@ -80,6 +82,8 @@ hypothesisTest <- function(data, adjacency,
     warning('The target systems used during resampling and during testing do not match. Results may be severely biased.')
   }
 
+  message('Determining fit statistics...', appendLF = FALSE)
+
   # determine fit statistics for original data (standardized)
   originalFit <- determineFits(data = data$original, adjacency = adjacency,
     target = target, fits = fits, tolerance = tolerance, hypothesis = hypothesis)
@@ -94,6 +98,8 @@ hypothesisTest <- function(data, adjacency,
   equal <- sweep(resampleFit, 2, originalFit, `==`) |> colSums()
 
   pvalues <- (larger + .5*equal) / (larger + smaller + equal)
+
+  message(' done.', appendLF = TRUE)
 
   results <- rbind(originalFit, pvalues)
   rownames(results) <- c('Statistic', 'p-Value')

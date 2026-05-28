@@ -25,6 +25,7 @@ summary.hyponetResult <- function(object, ...) {
 
   targets <- colnames(object$data)[object$target]
   if (is.null(targets)) targets <- object$target
+  if (length(targets) == ncol(object$data)) targets <- NULL
 
   out <- list(app = app, con = con,
     resample = object$resample,
@@ -48,8 +49,12 @@ print.summary.hyponetResult <- function(x, ...) {
   cat('\nSummary of the network hypothesis test\n')
   cat('======================================\n')
 
-  cat(paste0('\nHypothesis type: ', x$hypothesis, '\n'))
-  cat(paste0('Nodes in the target system: ', paste(x$target, collapse = ', '), '\n'))
+  if (is.null(x$target)) {
+    cat('\nHypothesis type: global\n')
+  } else {
+    cat(paste0('\nHypothesis type: ', x$hypothesis, '\n'))
+    cat(paste0('Nodes in the target system: ', paste(x$target, collapse = ', '), '\n'))
+  }
   cat(paste0('Tolerance for fuzzy testing: ', x$tolerance, '\n'))
   cat(paste0('Results based on ', x$nrep, ifelse(x$resample == 'exchangeableSampling', ' exchangeable', ' bootstrap'), ' Samples.\n'))
 
