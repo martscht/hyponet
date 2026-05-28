@@ -10,8 +10,8 @@
 #' the same order as the variables in the supplied data.
 #' @param target The column numbers of the variables that constitute the target
 #' system.
-#' @param hypothesis The type of hypothesis to be tested. Can be either 'local' (the
-#' default) or 'embed'. See details.
+#' @param hypothesis The type of hypothesis to be tested. Can be either 'local'
+#' (the default) or 'embed'. See details.
 #' @param fits The fit statistics to be computed. Can be either 'all' (the
 #' default) or a character vector of names. See details.
 #' @param tolerance The absolute tolerance value for fuzzy hypothesis testing.
@@ -21,7 +21,11 @@
 #' @param ... Other arguments to be passed to \code{exchangeablSampling} or
 #' \code{parametricBootstrap} when providing raw data.
 #'
-#' @return An array of test statistics with their corresponding p-Values.
+#' @return An object of class \code{hyponetResult}. Specifically a list
+#' containing \code{fit} (an array of fit measures and their p-values),
+#' \code{resample} (the resampling type used), \code{hypothesis} (the hypothesis
+#' type specified), \code{target} (the nodes contained in the target system),
+#' and \code{tolerance} (the tolerance value used for fuzzy hypothesis testing).
 #'
 #' @details
 #' The function can be used to test two types of hypotheses. Using
@@ -48,6 +52,8 @@ hypothesisTest <- function(data, adjacency,
   fits = 'all', tolerance = 1e-6,
   resample = c('exchangeableSampling', 'parametricBootstrap'),
   ...) {
+
+  call <- match.call()
 
   # check which kind of hypothesis is being tested
   hypothesis <- match.arg(hypothesis)
@@ -89,10 +95,19 @@ hypothesisTest <- function(data, adjacency,
 
   pvalues <- (larger + .5*equal) / (larger + smaller + equal)
 
-  out <- rbind(originalFit, pvalues)
-  rownames(out) <- c('Statistic', 'p-Value')
+  results <- rbind(originalFit, pvalues)
+  rownames(results) <- c('Statistic', 'p-Value')
 
-  # class(out) <- 'hyponetResult'
+  out <- list(fit = results,
+    resample = data$resample,
+    hypothesis = hypothesis,
+    target = target,
+    tolerance = tolerance,
+    nreps = length(data$copies),
+    call = call,
+    data = data$original)
+
+  class(out) <- 'hyponetResult'
 
   return(out)
 }

@@ -69,21 +69,6 @@ fullEstimation <- function(data, adjacency, target = 1:ncol(data)) {
 }
 
 
-#' Check for all available measures
-#' @noRd
-#' @keywords internal
-implementedFits <- function(prefix = 'fit_') {
-
-  ns <- asNamespace('hyponet')
-
-  fitFuns <- ls(ns, all.names = TRUE, pattern = paste0('^', prefix, '[a-zA-Z]+$'))
-
-  fits <- sub(paste0('^', prefix), '', fitFuns)
-
-  stats::setNames(fitFuns, fits)
-
-}
-
 #' Determine (any collection of) fit measures for a single application
 #' @noRd
 #' @keywords internal
@@ -151,54 +136,3 @@ determineFits <- function(data, adjacency, target = NULL, hypothesis, fits = 'al
 
   return(fitted)
 }
-
-#' Create a filter matrix for the relevant edges
-#' @noRd
-#' @keywords internal
-fitFilter <- function(est, tolerance = 1e-6,
-  hypothesis = c("local", "embed"),
-  triangle = FALSE) {
-
-  hypothesis <- match.arg(hypothesis)
-
-  p <- est$p
-  target <- est$target
-  adjacency <- est$adjacency
-
-  # tolerance filter for fuzziness
-  filt <- abs(est$empRho - est$impRho) > tolerance
-
-  # only restricted / missing edges can contribute
-  filt <- filt & adjacency == 0
-
-  # remove diagonal
-  diag(filt) <- FALSE
-
-  if (hypothesis == "local") {
-
-    # only pairs inside the target system
-    local <- matrix(FALSE, p, p)
-    local[target, target] <- TRUE
-    diag(local) <- FALSE
-
-    filt <- filt & local
-  }
-
-  if (hypothesis == "embed") {
-
-    # rows of target nodes: target nodes as response variables
-    embed <- matrix(FALSE, p, p)
-    embed[target, ] <- TRUE
-    diag(embed) <- FALSE
-
-    filt <- filt & embed
-  }
-
-  # for symmetric statistics
-  if (triangle) {
-    filt <- filt & lower.tri(filt)
-  }
-
-  return(filt)
-}
-

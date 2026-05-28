@@ -26,8 +26,8 @@ the same order as the variables in the supplied data.}
 \item{target}{The column numbers of the variables that constitute the target
 system.}
 
-\item{hypothesis}{The type of hypothesis to be tested. Can be either 'local' (the
-default) or 'embed'. See details.}
+\item{hypothesis}{The type of hypothesis to be tested. Can be either 'local'
+(the default) or 'embed'. See details.}
 
 \item{fits}{The fit statistics to be computed. Can be either 'all' (the
 default) or a character vector of names. See details.}
@@ -42,7 +42,11 @@ See details.}
 \code{parametricBootstrap} when providing raw data.}
 }
 \value{
-An array of test statistics with their corresponding p-Values.
+An object of class \code{hyponetResult}. Specifically a list
+containing \code{fit} (an array of fit measures and their p-values),
+\code{resample} (the resampling type used), \code{hypothesis} (the hypothesis
+type specified), \code{target} (the nodes contained in the target system),
+and \code{tolerance} (the tolerance value used for fuzzy hypothesis testing).
 }
 \description{
 This function tests the null hypothesis that the proposed adjacency matrix
