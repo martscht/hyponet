@@ -102,7 +102,7 @@ phiCompute <- function(est, tolerance = 1e-6, hypothesis) {
 }
 
 
-#' PRC helper function
+#' FPC helper function
 #' @noRd
 #' @keywords internal
 prcCompute <- function(est, tolerance = 1e-6, hypothesis) {

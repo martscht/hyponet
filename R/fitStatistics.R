@@ -141,10 +141,10 @@ fit_fmax_con <- function(est, tolerance = 1e-6, hypothesis) {
   return(fmax)
 }
 
-#' PRC sum of squares
+#' FPC sum of squares
 #' @noRd
 #' @keywords internal
-fit_prcss_con <- function(est, tolerance = 1e-6, hypothesis) {
+fit_fpc_con <- function(est, tolerance = 1e-6, hypothesis) {
 
   zval <- prcCompute(est = est, tolerance = tolerance)
 
@@ -159,23 +159,23 @@ fit_prcss_con <- function(est, tolerance = 1e-6, hypothesis) {
   return(prcss)
 }
 
-#' PRC sum of absolutes
-#' @noRd
-#' @keywords internal
-fit_prcsa_con <- function(est, tolerance = 1e-6, hypothesis) {
-
-  zval <- prcCompute(est = est, tolerance = tolerance)
-
-  # filter for elements to include
-  filt <- fitFilter(est = est, tolerance = tolerance,
-    hypothesis = hypothesis, triangle = TRUE, constraint = TRUE)
-
-  if (!any(filt)) return(0)
-
-  prcsa <- sum(abs(zval[filt]))
-
-  return(prcsa)
-}
+# #' PRC sum of absolutes
+# #' @noRd
+# #' @keywords internal
+# fit_prcsa_con <- function(est, tolerance = 1e-6, hypothesis) {
+#
+#   zval <- prcCompute(est = est, tolerance = tolerance)
+#
+#   # filter for elements to include
+#   filt <- fitFilter(est = est, tolerance = tolerance,
+#     hypothesis = hypothesis, triangle = TRUE, constraint = TRUE)
+#
+#   if (!any(filt)) return(0)
+#
+#   prcsa <- sum(abs(zval[filt]))
+#
+#   return(prcsa)
+# }
 
 ### Approximation statistics ----
 # these test all elements to check how close the implied network
@@ -279,10 +279,10 @@ fit_srmr_app <- function(est, tolerance = 1e-6, hypothesis) {
 }
 
 
-#' PRC sum of squares
+#' FPC sum of squares
 #' @noRd
 #' @keywords internal
-fit_prcss_app <- function(est, tolerance = 1e-6, hypothesis) {
+fit_fpcss_app <- function(est, tolerance = 1e-6, hypothesis) {
 
   zval <- prcCompute(est = est, tolerance = tolerance)
 
@@ -297,20 +297,20 @@ fit_prcss_app <- function(est, tolerance = 1e-6, hypothesis) {
   return(prcss)
 }
 
-#' PRC sum of absolutes
-#' @noRd
-#' @keywords internal
-fit_prcsa_app <- function(est, tolerance = 1e-6, hypothesis) {
-
-  zval <- prcCompute(est = est, tolerance = tolerance)
-
-  # filter for elements to include
-  filt <- fitFilter(est = est, tolerance = tolerance,
-    hypothesis = hypothesis, triangle = TRUE, constraint = FALSE)
-
-  if (!any(filt)) return(0)
-
-  prcsa <- sum(abs(zval[filt]))
-
-  return(prcsa)
-}
+# #' PRC sum of absolutes
+# #' @noRd
+# #' @keywords internal
+# fit_prcsa_app <- function(est, tolerance = 1e-6, hypothesis) {
+#
+#   zval <- prcCompute(est = est, tolerance = tolerance)
+#
+#   # filter for elements to include
+#   filt <- fitFilter(est = est, tolerance = tolerance,
+#     hypothesis = hypothesis, triangle = TRUE, constraint = FALSE)
+#
+#   if (!any(filt)) return(0)
+#
+#   prcsa <- sum(abs(zval[filt]))
+#
+#   return(prcsa)
+# }
