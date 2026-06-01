@@ -162,7 +162,7 @@ fitFilter <- function(est, tolerance = 1e-6,
 
   # for symmetric statistics
   if (triangle) {
-    filt <- filt & lower.tri(filt)
+    filt <- filt & upper.tri(filt)
   }
 
   return(filt)

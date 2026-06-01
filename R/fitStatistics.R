@@ -93,8 +93,10 @@ fit_rmsea_con <- function(est, tolerance = 1e-6, hypothesis) {
   chi <- fit_modindex_con(est, tolerance, hypothesis)
 
   # candidate constrained edges from shared fit filter
-  filt <- fitFilter(est = est, tolerance = -Inf,
+  filt <- fitFilter(est = est, tolerance = tolerance,
     hypothesis = hypothesis, triangle = TRUE, constraint = TRUE)
+
+  if (!any(filt)) return(0)
 
   df <- sum(filt)
 

@@ -21,11 +21,8 @@
 #' @param ... Other arguments to be passed to \code{exchangeablSampling} or
 #' \code{parametricBootstrap} when providing raw data.
 #'
-#' @return An object of class \code{hyponetResult}. Specifically a list
-#' containing \code{fit} (an array of fit measures and their p-values),
-#' \code{resample} (the resampling type used), \code{hypothesis} (the hypothesis
-#' type specified), \code{target} (the nodes contained in the target system),
-#' and \code{tolerance} (the tolerance value used for fuzzy hypothesis testing).
+#' @return An object of class \code{hyponetResult} for which there are methods
+#' for \code{print} and \code{summary}.
 #'
 #' @details
 #' The function can be used to test two types of hypotheses. Using
@@ -104,9 +101,14 @@ hypothesisTest <- function(data, adjacency,
   results <- rbind(originalFit, pvalues)
   rownames(results) <- c('Statistic', 'p-Value')
 
+  net <- fullEstimation(data$original, adjacency = adjacency, target = target)
+
   out <- list(fit = results,
+    impNetwork = net$impRho,
+    empNetwork = net$empRho,
     resample = data$resample,
     hypothesis = hypothesis,
+    adjacency = adjacency,
     target = target,
     tolerance = tolerance,
     nreps = length(data$copies),
