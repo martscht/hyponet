@@ -46,15 +46,19 @@ exchangeableSampling <- function(data, adjacency, target = 1:ncol(data),
   Xtilde <- vector('list', m)
 
   # Parallelization setup
-  cl <- parallel::makeCluster(ncores)
+  if (ncores > 1) {
+    cl <- parallel::makeCluster(ncores)
 
-  on.exit(parallel::stopCluster(cl), add = TRUE)
+    on.exit(parallel::stopCluster(cl), add = TRUE)
 
-  parallel::clusterExport(
-    cl,
-    varlist = c('Xhub', 'target', 'adjacency', 'l', 'algo2step1', 'algo1', 'orthVec'),
-    envir = environment()
-  )
+    parallel::clusterExport(
+      cl,
+      varlist = c('Xhub', 'target', 'adjacency', 'l', 'algo2step1', 'algo1', 'orthVec'),
+      envir = environment()
+    )
+  } else {
+    cl <- NULL
+  }
 
   # fill copies object
   Xtilde <- pbapply::pblapply(seq_len(m), cl = cl, FUN = function(mi) {

@@ -44,16 +44,21 @@ parametricBootstrap <- function(data, adjacency, m = 500, ncores = 1) {
   # Create copies object
   copies <- vector('list', m)
 
-  # Parallelization setup
-  cl <- parallel::makeCluster(ncores)
+  if (ncores > 1) {
 
-  on.exit(parallel::stopCluster(cl), add = TRUE)
+    # Parallelization setup
+    cl <- parallel::makeCluster(ncores)
 
-  parallel::clusterExport(
-    cl,
-    varlist = c('SigmaHat', 'n'),
-    envir = environment()
-  )
+    on.exit(parallel::stopCluster(cl), add = TRUE)
+
+    parallel::clusterExport(
+      cl,
+      varlist = c('SigmaHat', 'n'),
+      envir = environment()
+    )
+  } else {
+    cl <- NULL
+  }
 
   # fill copies object
   copies <- pbapply::pblapply(seq_len(m), cl = cl, FUN = function(mi) {
