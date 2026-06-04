@@ -123,7 +123,7 @@ determineSingleFits <- function(est, tolerance, fits, hypothesis) {
 #' Determine (any collection of) fit measures for many applications
 #' @noRd
 #' @keywords internal
-determineFits <- function(data, adjacency, target = NULL, hypothesis, fits = 'all', tolerance = 1e-6) {
+determineFits <- function(data, adjacency, target = NULL, hypothesis, fits = 'all', tolerance = 1e-6, ncores = 1) {
 
   if (inherits(data, 'matrix')) {
     data <- list(data)
@@ -131,7 +131,32 @@ determineFits <- function(data, adjacency, target = NULL, hypothesis, fits = 'al
   if (is.null(target)) target <- 1:ncol(data[[1]])
 
   estimated <- lapply(data, fullEstimation, adjacency = adjacency, target = target)
-  fitted <- lapply(estimated, determineSingleFits, tolerance = tolerance, fits = fits, hypothesis = hypothesis)
+
+  fitted <- vector('list', length(data))
+
+  if (length(data) <= 1) {
+    fitted <- lapply(estimated, determineSingleFits, tolerance = tolerance, fits = fits, hypothesis = hypothesis)
+  } else {
+    if (ncores > 1) {
+      # Parallelization setup
+      cl <- parallel::makeCluster(ncores)
+
+      on.exit(parallel::stopCluster(cl), add = TRUE)
+
+      parallel::clusterExport(
+        cl,
+        varlist = c('estimated', 'determineSingleFits', 'tolerance', 'fits', 'hypothesis', 'implementedFits'),
+        envir = environment()
+      )
+
+      parallel::clusterEvalQ(cl, library(hyponet))
+    } else {
+      cl <- NULL
+    }
+
+    fitted <- pbapply::pblapply(estimated, determineSingleFits, tolerance = tolerance, fits = fits, hypothesis = hypothesis, cl = cl)
+  }
+
   fitted <- do.call(rbind, fitted)
 
   return(fitted)

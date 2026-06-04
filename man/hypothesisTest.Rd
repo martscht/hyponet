@@ -10,8 +10,9 @@ hypothesisTest(
   target = NULL,
   hypothesis = c("local", "embed"),
   fits = "all",
-  tolerance = 1e-06,
+  tolerance = 0,
   resample = c("exchangeableSampling", "parametricBootstrap"),
+  ncores = 1,
   ...
 )
 }
@@ -38,15 +39,16 @@ See details.}
 \item{resample}{The type of resampling to use. Ignored if a
 \code{hypoeNet} object is provided to \code{data}.}
 
+\item{ncores}{The number of cores to use in parallel processing.}
+
 \item{...}{Other arguments to be passed to \code{exchangeablSampling} or
 \code{parametricBootstrap} when providing raw data.}
 }
 \value{
-An object of class \code{hyponetResult}. Specifically a list
-containing \code{fit} (an array of fit measures and their p-values),
-\code{resample} (the resampling type used), \code{hypothesis} (the hypothesis
-type specified), \code{target} (the nodes contained in the target system),
-and \code{tolerance} (the tolerance value used for fuzzy hypothesis testing).
+An object of class \code{hyponetResult} for which there are methods
+for \code{print} and \code{summary}. The output contains the model-implied
+network in \code{$impNetwork} and the empirical network without constraints
+in the target system in \code{$empNetwork}.
 }
 \description{
 This function tests the null hypothesis that the proposed adjacency matrix
@@ -55,9 +57,9 @@ holds in the sample data via resampling approaches.
 \details{
 The function can be used to test two types of hypotheses. Using
 \code{hypothesis = 'local'} results in a test of all edges within the target
-system #' (provided via \code{target}). Using \code{hypothesis = 'embed'}
-results in a test #' of all edges related to nodes in the target system. Thus
-the latter only #' excludes edges from the test which connect non-target
+system (provided via \code{target}). Using \code{hypothesis = 'embed'}
+results in a test of all edges related to nodes in the target system. Thus
+the latter only excludes edges from the test which connect non-target
 nodes to each other.
 
 Currently available fit statistics can be listed with

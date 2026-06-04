@@ -18,18 +18,21 @@
 #' See details.
 #' @param resample The type of resampling to use. Ignored if a
 #' \code{hypoeNet} object is provided to \code{data}.
+#' @param ncores The number of cores to use in parallel processing.
 #' @param ... Other arguments to be passed to \code{exchangeablSampling} or
 #' \code{parametricBootstrap} when providing raw data.
 #'
 #' @return An object of class \code{hyponetResult} for which there are methods
-#' for \code{print} and \code{summary}.
+#' for \code{print} and \code{summary}. The output contains the model-implied
+#' network in \code{$impNetwork} and the empirical network without constraints
+#' in the target system in \code{$empNetwork}.
 #'
 #' @details
 #' The function can be used to test two types of hypotheses. Using
 #' \code{hypothesis = 'local'} results in a test of all edges within the target
-#' system #' (provided via \code{target}). Using \code{hypothesis = 'embed'}
-#' results in a test #' of all edges related to nodes in the target system. Thus
-#' the latter only #' excludes edges from the test which connect non-target
+#' system (provided via \code{target}). Using \code{hypothesis = 'embed'}
+#' results in a test of all edges related to nodes in the target system. Thus
+#' the latter only excludes edges from the test which connect non-target
 #' nodes to each other.
 #'
 #' Currently available fit statistics can be listed with
@@ -46,8 +49,9 @@
 
 hypothesisTest <- function(data, adjacency,
   target = NULL, hypothesis = c('local', 'embed'),
-  fits = 'all', tolerance = 1e-6,
+  fits = 'all', tolerance = 0,
   resample = c('exchangeableSampling', 'parametricBootstrap'),
+  ncores = 1,
   ...) {
 
   call <- match.call()
@@ -67,10 +71,13 @@ hypothesisTest <- function(data, adjacency,
       exchangeableSampling = exchangeableSampling(
         data = data,
         adjacency = adjacency,
-        target = target, ...),
+        target = target,
+        ncores = ncores,
+        ...),
       parametricBootstrap = parametricBootstrap(
         data = data,
         adjacency = adjacency,
+        ncores = ncores,
         ...))
   }
 
@@ -79,15 +86,17 @@ hypothesisTest <- function(data, adjacency,
     warning('The target systems used during resampling and during testing do not match. Results may be severely biased.')
   }
 
-  message('Determining fit statistics...', appendLF = FALSE)
+  message('Determining fit statistics...')
 
   # determine fit statistics for original data (standardized)
   originalFit <- determineFits(data = data$original, adjacency = adjacency,
-    target = target, fits = fits, tolerance = tolerance, hypothesis = hypothesis)
+    target = target, fits = fits, tolerance = tolerance, hypothesis = hypothesis,
+    ncores = ncores)
 
   # determine fit statistics for copies
   resampleFit <- determineFits(data = data$copies, adjacency = adjacency,
-    target = target, fits = fits, tolerance = tolerance, hypothesis = hypothesis)
+    target = target, fits = fits, tolerance = tolerance, hypothesis = hypothesis,
+    ncores = ncores)
 
   # determine p-value
   larger <- sweep(resampleFit, 2, originalFit, `>`) |> colSums()
@@ -95,8 +104,6 @@ hypothesisTest <- function(data, adjacency,
   equal <- sweep(resampleFit, 2, originalFit, `==`) |> colSums()
 
   pvalues <- (larger + .5*equal) / (larger + smaller + equal)
-
-  message(' done.', appendLF = TRUE)
 
   results <- rbind(originalFit, pvalues)
   rownames(results) <- c('Statistic', 'p-Value')
@@ -106,11 +113,13 @@ hypothesisTest <- function(data, adjacency,
   out <- list(fit = results,
     impNetwork = net$impRho,
     empNetwork = net$empRho,
-    resample = data$resample,
+    originalFit = originalFit,
+    resampleFit = resampleFit,
     hypothesis = hypothesis,
     adjacency = adjacency,
     target = target,
     tolerance = tolerance,
+    resample = data$resample,
     nreps = length(data$copies),
     call = call,
     data = data$original)
