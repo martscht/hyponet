@@ -154,7 +154,7 @@ fit_fpc_con <- function(est, tolerance = 1e-6, hypothesis) {
 
   if (!any(filt)) return(0)
 
-  prcss <- sum(zval[filt]^2)
+  prcss <- sum(zval[filt])
 
   return(prcss)
 }
@@ -282,7 +282,7 @@ fit_srmr_app <- function(est, tolerance = 1e-6, hypothesis) {
 #' FPC sum of squares
 #' @noRd
 #' @keywords internal
-fit_fpcss_app <- function(est, tolerance = 1e-6, hypothesis) {
+fit_fpc_app <- function(est, tolerance = 1e-6, hypothesis) {
 
   zval <- prcCompute(est = est, tolerance = tolerance)
 
@@ -292,7 +292,7 @@ fit_fpcss_app <- function(est, tolerance = 1e-6, hypothesis) {
 
   if (!any(filt)) return(0)
 
-  prcss <- sum(zval[filt]^2)
+  prcss <- sum(zval[filt])
 
   return(prcss)
 }

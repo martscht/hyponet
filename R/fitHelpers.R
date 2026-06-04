@@ -58,14 +58,14 @@ phiCompute <- function(est, tolerance = 1e-6, hypothesis) {
     Ni <- setdiff(which(adjacency[i, ] != 0), i)
     candidates <- setdiff(seq_len(p), c(i, Ni))
 
-    ## RSS for baseline model: X_i ~ X_Ni
+    ## residual variance for baseline model: X_i ~ X_Ni
     if (length(Ni) == 0) {
 
       # residual if there are no neighbors (should return 1)
       res0 <- emp[i, i]
 
     } else {
-      # compute residual sum of squares
+      # compute residual variance
       empNi <- emp[i, Ni, drop = FALSE]
       empNN <- emp[Ni, Ni, drop = FALSE]
 
