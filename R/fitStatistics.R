@@ -284,7 +284,7 @@ fit_srmr_app <- function(est, tolerance = 1e-6, hypothesis) {
 #' @keywords internal
 fit_fpc_app <- function(est, tolerance = 1e-6, hypothesis) {
 
-  zval <- prcCompute(est = est, tolerance = tolerance)
+  zval <- prcCompute(est = est, tolerance = tolerance, constraint = FALSE)
 
   # filter for elements to include
   filt <- fitFilter(est = est, tolerance = tolerance,

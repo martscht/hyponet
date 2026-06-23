@@ -105,14 +105,19 @@ phiCompute <- function(est, tolerance = 1e-6, hypothesis) {
 #' FPC helper function
 #' @noRd
 #' @keywords internal
-prcCompute <- function(est, tolerance = 1e-6, hypothesis) {
+prcCompute <- function(est, tolerance = 1e-6, hypothesis, constraint = TRUE) {
 
   n <- est$n
   p <- est$p
 
-  r <- pmin(pmax(est$empRho, -1 + 1e-12), 1 - 1e-12)
-
-  zval <- abs(atanh(r)) * sqrt(n - p - 1)
+  if (constraint) {
+    r <- pmin(pmax(est$empRho, -1 + 1e-12), 1 - 1e-12)
+    zval <- abs(atanh(r)) * sqrt(n - p - 1)
+  } else {
+    remp <- pmin(pmax(est$emp, -1 + 1e-12), 1 - 1e-12)
+    rimp <- pmin(pmax(est$imp, -1 + 1e-12), 1 - 1e-12)
+    zval <- abs(atanh(remp)-atanh(rimp)) * sqrt(n - 3)
+  }
 
   return(zval)
 
