@@ -216,7 +216,7 @@ fit_chisq_app <- function(est, tolerance = 1e-6, hypothesis) {
   }
 
   diag(tolRho) <- -1
-  tol <- solve(-tolRho)
+  tol <- solve(-tolRho) |> stats::cov2cor()
 
   tol <- tol[apply(filt, 1, any), apply(filt, 2, any)]
   emp <- emp[apply(filt, 1, any), apply(filt, 2, any)]

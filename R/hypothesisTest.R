@@ -59,6 +59,12 @@ hypothesisTest <- function(data, adjacency,
   # check which kind of hypothesis is being tested
   hypothesis <- match.arg(hypothesis)
 
+  # check whether an adjancency matrix was provided
+  if (any(!(adjacency %in% c(0, 1)))) {
+    warning('The adjacency matrix contained values other than 0 or 1. All non-zero values were recoded to 1.')
+    adjacency[adjacency != 0] <- 1
+  }
+
   # If resampling was not done ahead of time, do it now
   if (!inherits(data, 'hyponetData')) {
     if (is.null(target)) target <- 1:ncol(data)
